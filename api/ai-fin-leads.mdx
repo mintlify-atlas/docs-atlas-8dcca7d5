@@ -1,6 +1,6 @@
 ---
 title: "POST /api/ai-fin/leads — Capture and Save AI-Qualified Leads"
-sidebarTitle: "POST /ai-fin/leads"
+sidebarTitle: "Leads"
 description: "Validate and persist a fully-qualified lead from the AI-fin agent to the Supabase leads table, with automatic next-action routing based on lead stage."
 ---
 
@@ -89,16 +89,16 @@ Content-Type: application/json
   How urgently the prospect needs a solution. One of: `"Low"`, `"Normal"`, `"High"`, `"Immediate"`.
 </ParamField>
 
-<ParamField body="systemsUsed" type="string[]" required>
-  An array of tools and platforms the prospect currently uses. Max 30 items, each up to 120 characters. Pass `[]` if unknown.
+<ParamField body="systemsUsed" type="string[]" default="[]">
+  An array of tools and platforms the prospect currently uses. Max 30 items, each up to 120 characters. Defaults to an empty array if omitted.
 </ParamField>
 
 <ParamField body="conversationSummary" type="string" required>
   A full summary of the AI-fin qualification conversation. Min 1 character, max 8000 characters. This is stored verbatim in Supabase.
 </ParamField>
 
-<ParamField body="source" type="string" required>
-  Origin of this lead. Defaults to `"ai-fin"`. Max 120 characters.
+<ParamField body="source" type="string" default="ai-fin">
+  Origin of this lead. Defaults to `"ai-fin"` if omitted. Max 120 characters.
 </ParamField>
 
 <ParamField body="consentToFollowUp" type="boolean" required>

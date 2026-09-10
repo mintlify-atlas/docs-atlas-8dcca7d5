@@ -1,7 +1,7 @@
 ---
 title: "POST /api/ai-fin/follow-up — Queue a Lead Follow-Up Message"
-sidebarTitle: "POST /ai-fin/follow-up"
-description: "Queue a typed follow-up message for a lead in the ai_fin_follow_ups Supabase table after an AI-fin recommendation, next-steps summary, or human review confirmation."
+sidebarTitle: "Follow-Up"
+description: "Queue a follow-up message for a lead in the ai_fin_follow_ups table after an AI-fin recommendation, next-steps briefing, or human review confirmation."
 ---
 
 The `/api/ai-fin/follow-up` endpoint queues a follow-up communication for a prospect after an AI-fin conversation. Three distinct message types cover the main post-conversation scenarios: sending a product recommendation summary, outlining next steps, or confirming that a human review has been queued. The record lands in the `ai_fin_follow_ups` Supabase table with `status: "queued"`, ready for your email or CRM automation to pick up.

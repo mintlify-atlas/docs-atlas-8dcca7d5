@@ -1,5 +1,5 @@
 ---
-title: "AI Wave Audit: Score Your Business AI Readiness"
+title: "AI Wave Audit: Find Your Business AI Opportunity Score"
 sidebarTitle: "Wave Audit"
 description: "A scored 5-question questionnaire that calculates your AI Opportunity Score™ out of 100 and surfaces the highest-impact AI agent for your business."
 ---
@@ -136,12 +136,12 @@ In parallel with the overall score, the algorithm accumulates points across five
 
 The scoring function returns a typed result object with the following fields:
 
-```typescript src/features/wave-audit/scoring.ts
-type WaveAuditResult = {
-  score: number;          // 0–100, the AI Opportunity Score™
-  topCategory: string;    // Human-readable category label
+```typescript src/features/wave-audit/types.ts
+interface WaveAuditResult {
+  score: number;           // 0–100, the AI Opportunity Score™
+  topCategory: string;     // Human-readable category label
   opportunities: string[]; // 1–2 actionable opportunity sentences
-  recommendedAgent: AuditAgent; // e.g. "Sales Rider" | "Big Kahuna"
+  recommendedAgent: AuditAgent; // "Sales Rider" | "Content Creator" | … | "Big Kahuna"
   confidenceLabel: string; // "High opportunity" | "Strong opportunity" | "Emerging opportunity"
 }
 ```

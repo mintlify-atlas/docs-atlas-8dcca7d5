@@ -101,6 +101,44 @@ curl http://localhost:3001/health
 | `POST` | `/api/ai-fin/onboarding` | Start the client onboarding flow and check Stripe readiness |
 | `GET` | `/api/dashboard` | Internal agent metrics dashboard |
 
+<Note>
+`POST /api/site-health` is a Cloudflare Pages Function — it is **not** an Express route on this server. It runs at the edge and is documented separately under [Cloudflare Pages](/deployment/cloudflare-pages).
+</Note>
+
+## Dashboard Response
+
+`GET /api/dashboard` returns a live snapshot of the four internal agents and their activity metrics.
+
+```json
+{
+  "system": "Ocean Tide Drop AI",
+  "agents": [
+    { "name": "WaveCloser",   "status": "active",   "jobs": 12 },
+    { "name": "LeadHunter",   "status": "active",   "jobs": 34 },
+    { "name": "PricingBrain", "status": "learning", "jobs": 8  },
+    { "name": "RetentionAI",  "status": "active",   "jobs": 21 }
+  ],
+  "metrics": {
+    "leads": 18,
+    "conversions": 6,
+    "revenue": 3480,
+    "uptime": 99.98
+  }
+}
+```
+
+<ResponseField name="system" type="string">
+  Internal system identifier — always `"Ocean Tide Drop AI"`.
+</ResponseField>
+
+<ResponseField name="agents" type="array">
+  Array of active agent records. Each entry contains `name` (string), `status` (`"active"` or `"learning"`), and `jobs` (number of tasks processed).
+</ResponseField>
+
+<ResponseField name="metrics" type="object">
+  Aggregate platform metrics: `leads` (total leads captured), `conversions` (qualified leads converted), `revenue` (total revenue in USD), and `uptime` (percentage uptime).
+</ResponseField>
+
 ## Explore the Endpoints
 
 <CardGroup cols={2}>

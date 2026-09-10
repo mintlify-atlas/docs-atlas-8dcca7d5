@@ -1,7 +1,7 @@
 ---
-title: "Deploy AI Surfer to Cloudflare Pages"
+title: "Deploy the AI Surfer React Frontend to Cloudflare Pages"
 sidebarTitle: "Cloudflare Pages"
-description: "Connect your GitHub repo to Cloudflare Pages, configure VITE_ environment variables, and ship the AI Surfer frontend in minutes."
+description: "Connect your GitHub repo to Cloudflare Pages, configure VITE_ environment variables, and deploy the AI Surfer frontend in minutes."
 ---
 
 Cloudflare Pages hosts the AI Surfer React frontend — the public-facing site at `otdaisurfer.surf`. Every push to your connected GitHub repository triggers an automatic build using Vite, and the compiled `dist/` directory is distributed globally across Cloudflare's edge network with zero server management. The `POST /api/site-health` endpoint also runs inside this Pages deployment via a Cloudflare Functions route, consuming the Browser Run API to screenshot and inspect the live site.

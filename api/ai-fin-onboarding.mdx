@@ -1,7 +1,7 @@
 ---
-title: "POST /api/ai-fin/onboarding — Start the Client Onboarding Flow"
-sidebarTitle: "POST /ai-fin/onboarding"
-description: "Create a client onboarding record, determine Stripe checkout readiness, and receive full checkout configuration status including required environment variables."
+title: "POST /api/ai-fin/onboarding — Start Client Onboarding"
+sidebarTitle: "Onboarding"
+description: "Create a client onboarding record in Supabase, set the next step type, and check Stripe checkout readiness with per-package environment variable status."
 ---
 
 The `/api/ai-fin/onboarding` endpoint is the entry point for converting a qualified lead into an active client. It creates a record in the `ai_fin_onboarding` Supabase table, determines the correct next step type (checkout, booking, intake form, or human review), and — when `nextStepType` is `"checkout"` — inspects the server's Stripe configuration to report whether a payment link can be generated immediately. This lets your frontend surface a helpful setup prompt when pricing environment variables are missing, rather than silently failing.

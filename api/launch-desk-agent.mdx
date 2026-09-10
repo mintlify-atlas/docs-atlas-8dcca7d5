@@ -1,5 +1,5 @@
 ---
-title: "Launch Desk Agent: OpenAI-Powered Launch Planner"
+title: "Launch Desk Agent: Tool-Validated AI Release Planner"
 sidebarTitle: "Launch Desk Agent"
 description: "Launch Desk is an OpenAI Agents SDK instance that turns rough launch briefs into structured, tool-validated release plans with streaming output."
 ---
@@ -199,17 +199,26 @@ const prompt = `Launch context:\n${JSON.stringify(
 // Stream the agent
 const stream = await run(launchDeskAgent, prompt, { stream: true });
 
+let text = "";
 for await (const event of stream) {
   if (event.type === "raw_model_stream_event") {
     const data = event.data as { type?: string; delta?: string };
     if (data.type === "output_text_delta" && data.delta) {
+      text += data.delta;
       send(res, { type: "text_delta", delta: data.delta });
+    }
+  } else if (event.type === "run_item_stream_event") {
+    const item = event.item as { type?: string; name?: string };
+    if (item.type === "tool_call_item") {
+      send(res, { type: "tool_progress", tool: item.name ?? "agent_tool", status: "started", message: `Running ${item.name ?? "planning tool"}…` });
+    } else if (item.type === "tool_call_output_item") {
+      send(res, { type: "tool_progress", tool: item.name ?? "agent_tool", status: "completed", message: `${item.name ?? "Planning tool"} completed.` });
     }
   }
 }
 
 await stream.completed;
-send(res, { type: "final", output: stream.finalOutput });
+send(res, { type: "final", output: text || stream.finalOutput || "Launch plan generated." });
 ```
 
 ### SSE Event Types

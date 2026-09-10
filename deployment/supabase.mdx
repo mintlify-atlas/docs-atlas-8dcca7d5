@@ -1,5 +1,5 @@
 ---
-title: "Configure Supabase for AI Surfer's Data Layer"
+title: "Configure Supabase for AI Surfer Database and Auth"
 sidebarTitle: "Supabase"
 description: "Set up AI Surfer's PostgreSQL database, row-level security policies, auth, and Edge Functions using the Supabase project at mkgnyarwiscttobnytin."
 ---
@@ -248,11 +248,17 @@ Two Edge Functions live in `supabase/functions/` and are deployed to Supabase's 
       const signature = req.headers.get("stripe-signature")!;
       const body = await req.text();
 
-      const event = stripe.webhooks.constructEvent(
-        body,
-        signature,
-        Deno.env.get("STRIPE_WEBHOOK_SECRET")!
-      );
+      let event;
+
+      try {
+        event = stripe.webhooks.constructEvent(
+          body,
+          signature,
+          Deno.env.get("STRIPE_WEBHOOK_SECRET")!
+        );
+      } catch (err) {
+        return new Response(`Webhook Error: ${err.message}`, { status: 400 });
+      }
 
       if (event.type === "checkout.session.completed") {
         const session = event.data.object;
@@ -260,7 +266,10 @@ Two Edge Functions live in `supabase/functions/` and are deployed to Supabase's 
         const tier = session.metadata?.tier || "bronze";
 
         if (email) {
-          await supabase.from("users").update({ tier }).eq("email", email);
+          await supabase
+            .from("users")
+            .update({ tier })
+            .eq("email", email);
         }
       }
 

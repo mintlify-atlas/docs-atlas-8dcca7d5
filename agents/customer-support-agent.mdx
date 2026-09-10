@@ -1,7 +1,7 @@
 ---
 title: "AI Customer Support Agent: 24/7 Automated Assistance"
 sidebarTitle: "Support Agent"
-description: "The Customer Support Agent handles FAQs, scheduling, and troubleshooting around the clock, escalating to a human via the AI Fin handoff system only when truly needed."
+description: "The Customer Support Agent handles FAQs, scheduling, and troubleshooting around the clock, escalating to a human via the handoff API only when needed."
 ---
 
 The AI Customer Support Agent eliminates the gap between when customers need help and when your team is available. Powered by the `otd-customer-support-agent` skill, it handles the full breadth of routine support interactions — questions, scheduling requests, basic troubleshooting, and policy enquiries — without requiring a human agent on standby. When an interaction falls outside its scope or triggers a defined escalation rule, it hands off to your team through the AI Fin handoff system, ensuring no customer is ever left in limbo.
@@ -56,7 +56,7 @@ The agent follows four non-negotiable rules in every interaction:
 
 ## Escalation Triggers
 
-The agent automatically escalates to a human operator when any of the following four conditions are detected. Escalation is routed through `POST /api/ai-fin/handoffs` in the AI Fin handoff system.
+The agent automatically escalates to a human operator when any of the following four conditions are detected. Escalation is routed through `POST /api/ai-fin/handoff` in the AI Fin handoff system.
 
 <Accordion title="Customer Is Angry">
   When a customer's language or tone signals genuine frustration, distress, or hostility, the agent does not attempt to resolve the emotional situation on its own. It acknowledges the customer's feelings, apologises appropriately, and transfers the conversation to a human agent who can provide the empathetic, adaptive response the situation requires.
@@ -84,7 +84,7 @@ The agent automatically escalates to a human operator when any of the following 
 When an escalation trigger fires, the Customer Support Agent routes the conversation to a human operator via the AI Fin handoff endpoint.
 
 ```http
-POST /api/ai-fin/handoffs
+POST /api/ai-fin/handoff
 ```
 
 The handoff payload includes the conversation context, the escalation reason, and any lead or customer data collected during the session — so the human agent picking up the conversation has full context and never asks the customer to repeat themselves.

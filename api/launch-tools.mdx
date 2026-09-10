@@ -291,7 +291,7 @@ export const draftChannelCopyTool = tool({
     return channels.map((channel) => ({
       channel,
       headline: `${audience}: meet the new release`,
-      body:     `We are launching ${productBrief.slice(0, 180).replace(/\s+/g, " ")}...`,
+      body:     `We are launching ${productBrief.slice(0, 180).replace(/\s+/g, " ")}. Learn what is changing, why it matters, and what to do next.`,
       cta:      "See the launch details",
     }));
   },
@@ -329,7 +329,7 @@ An array of copy objects, one per channel:
 </ResponseField>
 
 <ResponseField name="body" type="string">
-  Begins with `"We are launching "` followed by the first 180 characters of the product brief with whitespace normalised. Ends with `"..."` if the brief was truncated.
+  Begins with `"We are launching "` followed by the first 180 characters of the product brief with whitespace normalised, then the fixed suffix `". Learn what is changing, why it matters, and what to do next."` appended unconditionally.
 </ResponseField>
 
 <ResponseField name="cta" type="string">

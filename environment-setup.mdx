@@ -1,5 +1,5 @@
 ---
-title: "Configure AI Surfer Environment Variables"
+title: "AI Surfer Environment Setup: All Variables Explained"
 sidebarTitle: "Environment Setup"
 description: "Full reference for every AI Surfer environment variable — Supabase, Stripe, OpenAI, and Cloudflare — with security rules and the .env.example template."
 ---
@@ -147,6 +147,10 @@ Cloudflare credentials are used for two distinct purposes: deploying the Vite SP
   A long random bearer token that protects the `/api/site-health` endpoint from public callers. Pass it as `Authorization: Bearer <SITE_HEALTH_API_KEY>` when calling the endpoint from trusted systems or CI pipelines.
 </ParamField>
 
+<ParamField body="VITE_CLOUDFLARE_WORKERS_GRAFANA" type="string">
+  Optional frontend variable for a Cloudflare Workers Grafana dashboard URL. Injected into the React bundle at build time. Leave blank if you are not using a Grafana observability dashboard for your Workers deployment.
+</ParamField>
+
 <Tip>
   When deploying to production, set `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_BROWSER_TOKEN`, and `SITE_HEALTH_API_KEY` as **encrypted environment variables** in the Cloudflare Pages dashboard — not in a committed file.
 </Tip>
@@ -156,6 +160,7 @@ CLOUDFLARE_ACCOUNT_ID=your_account_id
 CLOUDFLARE_API_TOKEN=your_api_token
 CLOUDFLARE_BROWSER_TOKEN=your_browser_rendering_token
 SITE_HEALTH_API_KEY=a_long_random_secret
+VITE_CLOUDFLARE_WORKERS_GRAFANA=
 ```
 
 </Accordion>
@@ -185,6 +190,45 @@ VITE_API_URL=http://localhost:3001
 VITE_GOOGLE_API_KEY=
 
 GIT_SUBMODULES=false
+```
+
+</Accordion>
+
+<Accordion title="Other Services">
+
+These variables connect AI Surfer to auxiliary services used for CI/CD, code quality, secret scanning, and additional deployment targets.
+
+<ParamField body="GITHUB_TOKEN" type="string">
+  A GitHub personal access token or fine-grained token. Used by CI/CD workflows and any server-side logic that interacts with the GitHub API (e.g. reading repository metadata or triggering actions).
+</ParamField>
+
+<ParamField body="MCP_API_KEY" type="string">
+  API key for the Model Context Protocol (MCP) integration. Used when connecting AI Surfer agents to MCP-compatible tool servers.
+</ParamField>
+
+<ParamField body="SONAR_TOKEN" type="string">
+  Authentication token for SonarQube or SonarCloud static analysis. Required if the project's CI pipeline uploads code-quality reports to a Sonar instance.
+</ParamField>
+
+<ParamField body="SONAR_CLOUD" type="string">
+  SonarCloud organisation key or project key. Used alongside `SONAR_TOKEN` to identify the target project when submitting analysis results.
+</ParamField>
+
+<ParamField body="GITGUARDIAN" type="string">
+  API key for GitGuardian secret-scanning integration. When set, CI pipelines can report detected secrets to your GitGuardian dashboard instead of failing silently.
+</ParamField>
+
+<ParamField body="RENDER_PUBLISHABLE_KEY" type="string">
+  Publishable API key for Render.com. Used if any deployment or service-provisioning scripts target a Render-hosted backend environment.
+</ParamField>
+
+```bash .env
+GITHUB_TOKEN=
+MCP_API_KEY=
+SONAR_TOKEN=
+SONAR_CLOUD=
+GITGUARDIAN=
+RENDER_PUBLISHABLE_KEY=
 ```
 
 </Accordion>
