@@ -1,0 +1,124 @@
+---
+title: "Members Dashboard: Your AI Business Command Center"
+sidebarTitle: "Members Dashboard"
+description: "A subscription-gated portal at /members giving authenticated users access to six AI products, agent management, tier-based permissions, and the Wave Audit."
+---
+
+The Members Dashboard is AI Surfer's subscription-gated command centre, accessible at `/members`. Once a user signs in through Supabase Auth they are greeted by their personalised portal — showing their email address, membership tier, and a grid of six AI products tailored to different business growth challenges. From here they can launch the Wave Audit to discover their highest-impact AI opportunity, navigate to any product module, and manage a fleet of named AI agents backed by Supabase.
+
+## Authentication and Access Control
+
+The dashboard relies on Supabase Auth. Any visitor who reaches `/members` without an active session is automatically redirected away. Inside the dashboard, the `AuthContext` exposes the current `user` object. The platform reads `user.app_metadata.role` first: if the role is `"owner"`, the tier is set immediately to **Owner** without a database query.
+
+For all other users, the dashboard queries the `users` table in Supabase to fetch the `tier` field:
+
+```typescript src/pages/members/MembersDashboard.tsx
+supabase
+  .from("users")
+  .select("tier")
+  .eq("auth_id", user.id)
+  .maybeSingle()
+  .then(({ data: profile }) => {
+    if (profile?.tier) setTier(profile.tier);
+  });
+```
+
+The resolved tier string is displayed in the header and in a pill badge beside the **Your AI Surfer Products** heading, so members always know which plan level is active.
+
+## The Six AI Products
+
+Every authenticated member sees all six AI Surfer products. Each product card navigates to `/members/products/<slug>` when clicked.
+
+<CardGroup cols={2}>
+  <Card title="🔎 Wave Scout" icon="magnifying-glass" href="/agents/overview">
+    Find AI opportunities and qualified leads. Wave Scout helps you identify where AI can have the most immediate impact and surfaces prospects worth pursuing.
+  </Card>
+  <Card title="💰 Sales Rider" icon="arrow-trend-up" href="/agents/sales-agent">
+    Turn conversations into a repeatable sales system. Sales Rider automates follow-up, qualification, and outreach so opportunities never fall through the cracks.
+  </Card>
+  <Card title="✍️ Content Creator" icon="pen-nib" href="/agents/overview">
+    Build an AI-powered content engine. Content Creator generates, schedules, and optimises marketing material across your channels without adding headcount.
+  </Card>
+  <Card title="💬 Customer Care Cove" icon="comments" href="/agents/customer-support-agent">
+    Automate helpful customer support. Customer Care Cove handles routine questions, support requests, and status updates so your team focuses on complex issues.
+  </Card>
+  <Card title="⚙️ Automation Architect" icon="gears" href="/agents/overview">
+    Connect the workflows that keep business moving. Automation Architect eliminates manual handoffs and repetitive admin by linking your tools and processes.
+  </Card>
+  <Card title="🐋 Big Kahuna" icon="whale" href="/agents/overview">
+    High-touch AI strategy and implementation. Big Kahuna is the full-transformation package for businesses ready to rebuild their operations around AI across every department.
+  </Card>
+</CardGroup>
+
+## Tier System
+
+Membership tier controls which features and products a user can access. There are two primary roles:
+
+| Role | Source | Description |
+|------|--------|-------------|
+| **Owner** | `user.app_metadata.role === "owner"` | Full platform access. Set via Supabase `app_metadata` — does not require a `users` table row. |
+| **Member** | `users.tier` column in Supabase | Standard subscription tier. Can be upgraded by updating the `tier` value in the `users` table. |
+
+<Info>
+  The `tier` value displayed in the dashboard is whatever string is stored in `users.tier`. This means tier labels are flexible — they can reflect named plan tiers (e.g. `"Starter"`, `"Pro"`, `"Agency"`) as defined in your Supabase schema.
+</Info>
+
+## Wave Audit CTA
+
+Inside the dashboard hero section there is a persistent **Start with your AI Wave Audit** call-to-action. Clicking **Launch Wave Audit** navigates to `/wave-audit` using React Router. The CTA is always visible regardless of tier, encouraging every member to complete the audit and discover their biggest AI opportunity before diving into a specific product.
+
+```typescript src/pages/members/MembersDashboard.tsx
+<button onClick={() => navigate("/wave-audit")} style={styles.cta}>
+  Launch Wave Audit
+</button>
+```
+
+See the [AI Wave Audit](/features/wave-audit) documentation for full details on what the audit produces.
+
+## Agent Management: AI Agent Harbor
+
+Members can create and manage named AI agents from the **AI Agent Harbor** page (`/members/agents`). Each agent is a named automation worker scoped to a business type and purpose. Agents are stored per-user in the Supabase `agents` table.
+
+### Creating an Agent
+
+<Steps>
+  <Step title="Open AI Agent Harbor">
+    Navigate to `/members/agents`. The page loads your existing agent fleet from Supabase on mount, querying the `agents` table filtered by your `user.id` and ordered by `created_at` descending.
+  </Step>
+  <Step title="Fill in the Agent Fields">
+    Provide three pieces of information:
+    - **Agent name** — a descriptive name for this automation worker
+    - **Business type** — the business context this agent operates in
+    - **Purpose** — a free-text description of what this agent should do
+  </Step>
+  <Step title="Launch the Agent">
+    Click **Launch AI Agent 🚀**. The platform calls `supabase.from("agents").insert(...)` with `status: "active"` and your `user.id`. The form clears and the fleet refreshes automatically.
+  </Step>
+</Steps>
+
+### Agent Data Model
+
+Each agent record in Supabase contains the following fields:
+
+```typescript src/pages/members/Agents.tsx
+interface Agent {
+  id: string;           // Supabase-generated UUID
+  name: string;         // Display name for the agent
+  business_type: string; // Business context (e.g. "E-commerce", "Agency")
+  purpose: string;      // What the agent is configured to do
+  status: string;       // "active" by default on creation
+  created_at: string;   // ISO timestamp, used for descending sort
+}
+```
+
+### Managing Your Fleet
+
+Active agents appear in a responsive three-column grid on the AI Agent Harbor page. Each card shows the agent name, business type, purpose, and status badge. To remove an agent, click the trash icon on its card — this calls `supabase.from("agents").delete().eq("id", id)` and immediately refreshes the fleet.
+
+<Warning>
+  Agent deletion is immediate and permanent. There is no confirmation dialog or undo option. Deleted agents cannot be recovered from the UI.
+</Warning>
+
+## Signing Out
+
+The dashboard header includes a **Sign out** button that calls `authSignOut()` from `AuthContext` and redirects the user to `/` using React Router's `replace` navigation, clearing the browser history entry for the dashboard.

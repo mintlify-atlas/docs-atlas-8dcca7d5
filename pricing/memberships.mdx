@@ -1,0 +1,177 @@
+---
+title: "AI Surfer Membership Tiers and Subscription Plans"
+sidebarTitle: "Memberships"
+description: "Five membership tiers from the free Starter Tide to the $750/month Ocean Dominion enterprise plan — compare features, access levels, and Stripe integration details."
+---
+
+AI Surfer's membership system gives every business a clear upgrade path from free access through enterprise-grade AI infrastructure. Each tier is assigned a numeric **access level** (0–4) that the platform uses to gate features — the higher your access level, the more of the AI agent suite, automation pipelines, and analytics dashboard become available to you. Subscriptions are managed through Stripe, and every paid tier has a dedicated `stripePriceId` used at checkout.
+
+<Note>
+  The live pricing on the AI Surfer website may differ from the standard PRICING constants during promotional periods. The current promoted offer is the **Builder Wave Members Portal** at **$17/month** — lower than the standard $29/month Builder Wave rate listed in the platform constants. Always check the [live pricing page](https://otdaisurfer.surf) for the most current offer before purchasing.
+</Note>
+
+## Membership Tiers
+
+### Starter Tide — Free
+
+The no-cost entry point. Starter Tide gives you basic access to AI Surfer's preview toolset and community-level insights so you can evaluate the platform before committing.
+
+<CardGroup cols={2}>
+  <Card title="Access Level" icon="signal">
+    **Level 0** — preview access only
+  </Card>
+  <Card title="Price" icon="tag">
+    **$0/month** — no credit card required
+  </Card>
+</CardGroup>
+
+**Included features:**
+- Basic AI starter access
+- Limited preview tools
+- Community-level insights
+
+---
+
+### Builder Wave — $29/month
+
+The first paid tier, designed for individuals and small teams starting to build AI-powered workflows. The current promotional offer prices this tier at **$17/month** via a direct Stripe buy link — check the live pricing page.
+
+<CardGroup cols={2}>
+  <Card title="Access Level" icon="signal">
+    **Level 1** — starter automation access
+  </Card>
+  <Card title="Stripe Price ID" icon="stripe">
+    `price_bronze_wave`
+  </Card>
+</CardGroup>
+
+**Included features:**
+- AI workflow templates
+- Starter automation systems
+- Email capture tools
+
+---
+
+### Growth Wave — $99/month ⭐ Featured
+
+The most popular tier and the recommended starting point for businesses serious about AI-driven revenue growth. Growth Wave is marked as `featured: true` in the platform — it represents the inflection point where AI Surfer shifts from tooling to a full business system.
+
+<CardGroup cols={2}>
+  <Card title="Access Level" icon="signal">
+    **Level 2** — full AI business system access
+  </Card>
+  <Card title="Stripe Price ID" icon="stripe">
+    `price_growth_wave`
+  </Card>
+</CardGroup>
+
+**Included features:**
+- Full AI business system
+- Automation + revenue pipelines
+- Prompt + tool library
+- Dashboard + analytics
+- Priority AI upgrades
+
+---
+
+### Tsunami Pro — $250/month
+
+Built for agencies and multi-client operators that need to run AI automation across more than one business simultaneously. Tsunami Pro adds a multi-client automation layer on top of everything in Growth Wave.
+
+<CardGroup cols={2}>
+  <Card title="Access Level" icon="signal">
+    **Level 3** — multi-client automation access
+  </Card>
+  <Card title="Stripe Price ID" icon="stripe">
+    `price_tsunami_pro`
+  </Card>
+</CardGroup>
+
+**Included features:**
+- Everything in Growth Wave
+- Advanced AI agents
+- Multi-client automation layer
+- Revenue tracking engine
+- Priority support channel
+
+---
+
+### Ocean Dominion — $750/month
+
+The enterprise tier. Ocean Dominion provides fully custom AI infrastructure, white-label systems, and a dedicated deployment pipeline — ideal for agencies, larger organisations, and operators who need 1:1 build support alongside the platform.
+
+<CardGroup cols={2}>
+  <Card title="Access Level" icon="signal">
+    **Level 4** — full custom infrastructure access
+  </Card>
+  <Card title="Stripe Price ID" icon="stripe">
+    `price_enterprise_ocean`
+  </Card>
+</CardGroup>
+
+**Included features:**
+- Custom AI infrastructure
+- White-label systems
+- Dedicated deployment pipeline
+- Full automation architecture
+- 1:1 build support
+
+---
+
+## Tier Comparison
+
+| Tier | Price | Access Level | Stripe Price ID | Featured |
+|---|---|---|---|---|
+| Starter Tide | Free | 0 | — | No |
+| Builder Wave | $29/month | 1 | `price_bronze_wave` | No |
+| Growth Wave | $99/month | 2 | `price_growth_wave` | ✅ Yes |
+| Tsunami Pro | $250/month | 3 | `price_tsunami_pro` | No |
+| Ocean Dominion | $750/month | 4 | `price_enterprise_ocean` | No |
+
+## Current Live Offer
+
+The **Builder Wave Members Portal** is currently promoted at **$17/month** — a discounted rate relative to the standard $29/month Builder Wave tier. This promotional offer is the primary entry point featured on the pricing page and unlocks:
+
+- Content Creator suite
+- Customer Care Cove
+- AEO Blueprint
+- Automation Blueprint
+- All Starter Tide tools
+
+Purchase is handled directly through a Stripe Checkout session via `buy.stripe.com`. The promotional price and associated Stripe link are separate from the `price_bronze_wave` ID in the platform constants and are managed as a standalone offer.
+
+## The Access Level System
+
+Access levels are numeric integers (0–4) stored on the user's membership record and checked throughout the platform to determine which features, agents, and dashboards are unlocked. The access level gates are enforced server-side — a user cannot access a feature above their current level regardless of frontend state.
+
+```
+Level 0 → Starter Tide   — preview tools only
+Level 1 → Builder Wave   — workflow templates + automation starters
+Level 2 → Growth Wave    — full AI business system + analytics
+Level 3 → Tsunami Pro    — multi-client layer + revenue tracking
+Level 4 → Ocean Dominion — custom infrastructure + white-label + 1:1 support
+```
+
+<Info>
+  Access levels are additive — each higher tier includes everything from the tiers below it. There is no feature available at Level 1 that is removed at Level 3.
+</Info>
+
+## Managing Your Subscription
+
+All billing is handled through Stripe. After subscribing, you can manage your plan, update payment methods, and cancel or upgrade at any time through the Stripe customer portal.
+
+<Steps>
+  <Step title="Log in to AI Surfer">
+    Navigate to [otdaisurfer.surf](https://otdaisurfer.surf) and sign in to your account.
+  </Step>
+  <Step title="Open billing settings">
+    Access the billing or account settings page, which links directly to your Stripe customer portal session.
+  </Step>
+  <Step title="Manage your plan">
+    From the Stripe portal you can upgrade tiers, update your payment method, download invoices, or cancel your subscription.
+  </Step>
+</Steps>
+
+<Warning>
+  Downgrading your membership to a lower access level will immediately revoke access to features above that level. Export any data or automations you need to retain before downgrading.
+</Warning>

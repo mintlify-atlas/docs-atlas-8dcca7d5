@@ -1,0 +1,271 @@
+---
+title: "Configure AI Surfer Environment Variables"
+sidebarTitle: "Environment Setup"
+description: "Full reference for every AI Surfer environment variable — Supabase, Stripe, OpenAI, and Cloudflare — with security rules and the .env.example template."
+---
+
+AI Surfer uses a single `.env` file at the project root to configure all external service credentials, feature flags, and runtime options. The `.env.example` file checked into the repository is the authoritative template — it lists every supported variable with comments explaining each one's purpose and security requirements. Never commit a populated `.env` file; it is listed in `.gitignore` by default.
+
+## Getting Started
+
+Copy the template to create your local environment file:
+
+```bash
+cp .env.example .env
+```
+
+Then open `.env` in your editor and fill in the values for each service you need. Variables prefixed with `VITE_` are injected into the React frontend bundle by Vite at build time and are therefore **visible in the browser**. All other variables are server-only and stay out of the client bundle.
+
+<Warning>
+  Never add secret credentials — service-role database keys, Stripe secret keys, OpenAI API keys, webhook secrets, or bearer tokens — to any variable that starts with `VITE_`. Vite embeds those values directly into the compiled JavaScript that ships to the browser. Only publishable or public keys may use the `VITE_` prefix.
+</Warning>
+
+## Variable Reference
+
+<Accordion title="Supabase">
+
+AI Surfer uses Supabase for user authentication and database storage (tier lookup, Wave Audit lead capture, audit reports). Two sets of variables are required: `VITE_`-prefixed ones for the React client running in the browser, and non-prefixed ones for the Express server handling the AI Fin pipeline.
+
+<ParamField body="VITE_SUPABASE_URL" type="string" required>
+  The full URL of your Supabase project, e.g. `https://your-project-id.supabase.co`. Used by the React app to initialize the Supabase client for auth and row-level data queries.
+</ParamField>
+
+<ParamField body="VITE_SUPABASE_ANON_KEY" type="string" required>
+  The anon (publishable) key for your Supabase project. Safe to expose in the browser — Supabase Row Level Security policies enforce what anonymous and authenticated users can access.
+</ParamField>
+
+<ParamField body="SUPABASE_URL" type="string" required>
+  Server-side alias for the Supabase project URL. Used by the AI Fin lead endpoint and other server handlers. May be set to the same value as `VITE_SUPABASE_URL`.
+</ParamField>
+
+<ParamField body="SUPABASE_ANON_KEY" type="string" required>
+  Server-side alias for the Supabase anon/publishable key. Used by Express API handlers. May be set to the same value as `VITE_SUPABASE_ANON_KEY`.
+</ParamField>
+
+<Note>
+  The server health check (`GET /health`) reports `supabaseConfigured: true` when either `SUPABASE_URL` **or** `VITE_SUPABASE_URL` is set together with a corresponding anon key. Both pairs are checked so the server works whether you populate both sets or just one.
+</Note>
+
+```bash .env
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_ANON_KEY=sb_publishable_...
+
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_ANON_KEY=sb_publishable_...
+```
+
+</Accordion>
+
+<Accordion title="Stripe">
+
+Stripe powers all billing in AI Surfer — checkout sessions, customer portal access, webhooks, and the three Wave/Tsunami membership tiers. The publishable key is safe for the browser; the secret key and webhook secret must remain server-only.
+
+<ParamField body="VITE_STRIPE_PUBLISHABLE_KEY" type="string" required>
+  The Stripe publishable key (begins with `pk_live_` or `pk_test_`). Used in the React frontend to initialize Stripe.js and redirect to checkout. Only publishable keys may use the `VITE_` prefix.
+</ParamField>
+
+<ParamField body="VITE_STRIPE_PUBLIC_KEY" type="string">
+  Alias for `VITE_STRIPE_PUBLISHABLE_KEY`. Some components may reference this alternate name. Set it to the same publishable key value if you encounter missing-key errors.
+</ParamField>
+
+<ParamField body="STRIPE_SECRET_KEY" type="string" required>
+  The Stripe secret key (begins with `sk_live_` or `sk_test_`). **Server-only.** Used to create checkout sessions, portal sessions, and verify events. Never prefix with `VITE_`.
+</ParamField>
+
+<ParamField body="STRIPE_WEBHOOK_SECRET" type="string" required>
+  The webhook signing secret (begins with `whsec_`). **Server-only.** Used to verify that incoming webhook events originate from Stripe. Obtain it from the Stripe dashboard under Webhooks.
+</ParamField>
+
+<ParamField body="STRIPE_PRICE_WAVE_STARTER" type="string" required>
+  A Stripe Price ID (begins with `price_`) for the Wave Starter membership tier. Create this price in the Stripe dashboard and paste the `price_*` value here.
+</ParamField>
+
+<ParamField body="STRIPE_PRICE_WAVE_BUILDER" type="string" required>
+  A Stripe Price ID for the Wave Builder membership tier.
+</ParamField>
+
+<ParamField body="STRIPE_PRICE_TSUNAMI_GROWTH" type="string" required>
+  A Stripe Price ID for the Tsunami Growth membership tier.
+</ParamField>
+
+```bash .env
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...
+VITE_STRIPE_PUBLIC_KEY=pk_test_...
+
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+STRIPE_PRICE_WAVE_STARTER=price_...
+STRIPE_PRICE_WAVE_BUILDER=price_...
+STRIPE_PRICE_TSUNAMI_GROWTH=price_...
+```
+
+</Accordion>
+
+<Accordion title="OpenAI">
+
+The OpenAI Agents SDK (`@openai/agents`) powers the Launch Desk agent and the AI Fin pipeline. All OpenAI variables are server-only — they must never be prefixed with `VITE_`.
+
+<ParamField body="OPENAI_API_KEY" type="string" required>
+  Your OpenAI API key (begins with `sk-`). Required for the Launch Desk agent (`POST /api/launch`) and all AI Fin handlers. The health endpoint reports `openaiConfigured: true` when this is set.
+</ParamField>
+
+<ParamField body="OPENAI_MODEL" type="string" default="gpt-5.6-terra">
+  The OpenAI model identifier to use for agent inference. Defaults to `gpt-5.6-terra` as set in `.env.example`. Override this to use a different model available on your OpenAI account.
+</ParamField>
+
+<ParamField body="OPENAI_AGENTS_DISABLE_TRACING" type="number" default="0">
+  Set to `1` to disable OpenAI Agents SDK tracing. When set to `0` (the default), agent run traces are forwarded to OpenAI for observability. Disable in environments where you do not want trace data to leave your infrastructure.
+</ParamField>
+
+```bash .env
+# Server-only — never use VITE_ prefix for OpenAI credentials
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-5.6-terra
+OPENAI_AGENTS_DISABLE_TRACING=0
+```
+
+</Accordion>
+
+<Accordion title="Cloudflare">
+
+Cloudflare credentials are used for two distinct purposes: deploying the Vite SPA to Cloudflare Pages via the `wrangler` CLI, and powering the `POST /api/site-health` endpoint which uses Cloudflare Browser Rendering to capture a live screenshot, Markdown, and accessibility tree of the production site.
+
+<ParamField body="CLOUDFLARE_ACCOUNT_ID" type="string">
+  Your Cloudflare account ID. Required by `wrangler` for `worker:dev`, `worker:deploy`, and `worker:browser` scripts. Also used by the Browser Rendering API.
+</ParamField>
+
+<ParamField body="CLOUDFLARE_API_TOKEN" type="string">
+  A Cloudflare API token with the permissions needed for Pages and Workers deployment. Treat as a secret — do not prefix with `VITE_`.
+</ParamField>
+
+<ParamField body="CLOUDFLARE_BROWSER_TOKEN" type="string">
+  A custom Cloudflare API token scoped to **Browser Rendering - Edit** permissions. Used exclusively by the `/api/site-health` endpoint to call the Browser Run Quick Actions API. Never expose in the browser.
+</ParamField>
+
+<ParamField body="SITE_HEALTH_API_KEY" type="string">
+  A long random bearer token that protects the `/api/site-health` endpoint from public callers. Pass it as `Authorization: Bearer <SITE_HEALTH_API_KEY>` when calling the endpoint from trusted systems or CI pipelines.
+</ParamField>
+
+<Tip>
+  When deploying to production, set `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_BROWSER_TOKEN`, and `SITE_HEALTH_API_KEY` as **encrypted environment variables** in the Cloudflare Pages dashboard — not in a committed file.
+</Tip>
+
+```bash .env
+CLOUDFLARE_ACCOUNT_ID=your_account_id
+CLOUDFLARE_API_TOKEN=your_api_token
+CLOUDFLARE_BROWSER_TOKEN=your_browser_rendering_token
+SITE_HEALTH_API_KEY=a_long_random_secret
+```
+
+</Accordion>
+
+<Accordion title="App Configuration">
+
+These variables control runtime behavior of the application itself rather than external service credentials.
+
+<ParamField body="VITE_API_URL" type="string" default="http://localhost:3001">
+  The base URL the React frontend uses to reach the Express backend. Defaults to `http://localhost:3001` for local development. In production with a same-origin reverse proxy (e.g. a Cloudflare Worker routing `/api/*` to the backend), leave this blank or set it to an empty string.
+</ParamField>
+
+<ParamField body="VITE_GOOGLE_API_KEY" type="string">
+  Optional API key for Google GenAI (`@google/genai`). The package is installed alongside the OpenAI SDK. Set this if you want to use Google model endpoints for specific agent tasks.
+</ParamField>
+
+<ParamField body="GIT_SUBMODULES" type="boolean" default="false">
+  Controls whether git submodule initialization is performed during CI/CD builds. Defaults to `false`. This flag is read by build pipelines — there are no git submodules in the main repository.
+</ParamField>
+
+<Note>
+  The `GIT_SUBMODULES=false` default ensures Cloudflare Pages and other CI systems do not attempt to clone submodule repositories that do not exist, which would otherwise cause build failures.
+</Note>
+
+```bash .env
+VITE_API_URL=http://localhost:3001
+VITE_GOOGLE_API_KEY=
+
+GIT_SUBMODULES=false
+```
+
+</Accordion>
+
+## Full `.env.example` Template
+
+The complete environment template as it appears in the repository. Copy this, remove the comments, and fill in your values:
+
+```bash .env.example
+# Ocean Tide Drop AI SURFER environment template
+# NEVER put real credentials in this file.
+# Local development: copy to .env and fill values locally.
+
+# Supabase
+VITE_SUPABASE_URL=https://mkgnyarwiscttobnytin.supabase.co
+VITE_SUPABASE_ANON_KEY=sb_publishable_...
+# Server-side aliases used by the AI Fin lead endpoint. These may use the same
+# project URL and anon/publishable key above. Never put a service-role key in VITE_*.
+SUPABASE_URL=https://mkgnyarwiscttobnytin.supabase.co
+SUPABASE_ANON_KEY=sb_publishable_...
+
+# Stripe
+# Only publishable Stripe keys may use the VITE_ prefix.
+VITE_STRIPE_PUBLISHABLE_KEY=
+VITE_STRIPE_PUBLIC_KEY=
+# Server-only secrets — never rename these with a VITE_ prefix.
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+# AI Fin package-specific Stripe Price IDs. Use real Stripe price_* values only.
+STRIPE_PRICE_WAVE_STARTER=
+STRIPE_PRICE_WAVE_BUILDER=
+STRIPE_PRICE_TSUNAMI_GROWTH=
+
+# Google
+VITE_GOOGLE_API_KEY=
+
+# OpenAI Agents SDK - SERVER ONLY
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5.6-terra
+OPENAI_AGENTS_DISABLE_TRACING=0
+
+# Frontend -> backend URL. Leave blank when using a same-origin reverse proxy.
+VITE_API_URL=http://localhost:3001
+
+# GitHub
+GITHUB_TOKEN=
+
+# Cloudflare
+CLOUDFLARE_ACCOUNT_ID=
+CLOUDFLARE_API_TOKEN=
+# Server-only Browser Run credentials for /api/site-health.
+CLOUDFLARE_BROWSER_TOKEN=
+SITE_HEALTH_API_KEY=
+VITE_CLOUDFLARE_WORKERS_GRAFANA=
+
+# Other services
+MCP_API_KEY=
+SONAR_TOKEN=
+SONAR_CLOUD=
+GITGUARDIAN=
+RENDER_PUBLISHABLE_KEY=
+
+# Application / feature flags
+GIT_SUBMODULES=false
+```
+
+## Security Checklist
+
+Before deploying to any environment, verify the following:
+
+<CardGroup cols={2}>
+  <Card title="No secrets in VITE_ variables" icon="shield-halved">
+    Audit every `VITE_*` variable. Only publishable Stripe keys and public Supabase anon keys belong there. No service-role keys, secret keys, or webhook secrets.
+  </Card>
+  <Card title=".env not committed" icon="eye-slash">
+    Confirm `.env` is listed in `.gitignore`. Run `git status` and verify the file does not appear as a tracked or staged change.
+  </Card>
+  <Card title="Cloudflare vars encrypted" icon="lock">
+    Set `CLOUDFLARE_BROWSER_TOKEN` and `SITE_HEALTH_API_KEY` as encrypted environment variables in the Cloudflare Pages dashboard, not in plain text in any committed file.
+  </Card>
+  <Card title="Stripe webhook secret verified" icon="webhook">
+    Use the Stripe CLI (`stripe listen --forward-to localhost:3001/api/stripe/webhook`) locally to verify `STRIPE_WEBHOOK_SECRET` signature validation works before going live.
+  </Card>
+</CardGroup>

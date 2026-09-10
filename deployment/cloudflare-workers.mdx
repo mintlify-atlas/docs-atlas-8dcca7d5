@@ -1,0 +1,223 @@
+---
+title: "Deploy the AI Surfer Worker to Cloudflare Workers"
+sidebarTitle: "Cloudflare Workers"
+description: "Build and deploy the ai-surfer-browser Worker with a remote BROWSER binding to capture screenshots of the AI Surfer site at the edge."
+---
+
+The AI Surfer Cloudflare Worker (`src/worker/index.ts`) is a lightweight edge function that wraps the **Cloudflare Browser Rendering** API. It accepts `GET /screenshot` requests, validates that the target URL belongs to `otdaisurfer.surf`, and delegates to the `BROWSER` binding's `quickAction` method to return a full-page screenshot. A `GET /health` route confirms the Worker is running and that the `BROWSER` binding is attached. This Worker is separate from the Express backend — it runs on Cloudflare's global network rather than on a traditional server, making it ideal for browser automation tasks at the edge.
+
+## How the Worker Fits into AI Surfer
+
+AI Surfer has two distinct server-side runtimes that serve different purposes:
+
+<CardGroup cols={2}>
+  <Card title="Express Backend" icon="server">
+    Runs as a Node.js process (e.g. on Render or a VPS). Handles AI agent orchestration via the OpenAI Agents SDK, Supabase writes for leads and audits, and all `/api/ai-fin/*` routes.
+  </Card>
+  <Card title="Cloudflare Worker" icon="cloud">
+    Runs at the Cloudflare edge. Handles browser automation tasks via the `BROWSER` binding (Browser Rendering). Isolated from the Node.js process and deployed with `wrangler`.
+  </Card>
+</CardGroup>
+
+The two runtimes are independently deployed and scaled. The Worker does **not** replace the Express server — it handles only the browser-rendering workload.
+
+## Worker Source
+
+The Worker is defined in `src/worker/index.ts`. It exports a standard `fetch` handler and uses a typed `BROWSER` binding interface:
+
+```typescript src/worker/index.ts
+interface BrowserRunBinding {
+  quickAction(action: string, options: Record<string, unknown>): Promise<Response>;
+}
+
+interface Env {
+  BROWSER: BrowserRunBinding;
+}
+
+const allowedHosts = new Set(["otdaisurfer.surf", "www.otdaisurfer.surf"]);
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+
+    if (request.method !== "GET") {
+      return new Response("Method Not Allowed", { status: 405 });
+    }
+
+    if (url.pathname === "/health") {
+      return Response.json({
+        status: "ok",
+        service: "ai-surfer-browser",
+        browserRun: true,
+      });
+    }
+
+    if (url.pathname === "/screenshot") {
+      // resolveTarget validates the ?url= param against allowedHosts
+      const target = resolveTarget(request);
+      if (target instanceof Response) return target;
+
+      return env.BROWSER.quickAction("screenshot", {
+        url: target.toString(),
+        screenshotOptions: { fullPage: true },
+      });
+    }
+
+    return Response.json(
+      {
+        service: "AI SURFER Browser Run",
+        routes: ["GET /health", "GET /screenshot?url=https://otdaisurfer.surf/"],
+      },
+      { status: 200 },
+    );
+  },
+};
+```
+
+<Note>
+  The Worker only accepts requests targeting `otdaisurfer.surf` or `www.otdaisurfer.surf`. Any other `?url=` value is rejected with a `403` response. This prevents the Browser Run binding from being used as an open proxy.
+</Note>
+
+## Wrangler Configuration
+
+The Worker is configured in `wrangler.jsonc` at the project root:
+
+```jsonc wrangler.jsonc
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "ai-surfer-browser",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-08-25",
+  "browser": {
+    "binding": "BROWSER",
+    "remote": true
+  },
+  "observability": {
+    "enabled": true
+  }
+}
+```
+
+Key fields:
+
+| Field | Value | Purpose |
+|---|---|---|
+| `name` | `ai-surfer-browser` | The Worker name in your Cloudflare account |
+| `main` | `src/worker/index.ts` | Entry point compiled by wrangler |
+| `compatibility_date` | `2026-08-25` | Locks the Workers runtime API surface |
+| `browser.binding` | `BROWSER` | Injects the Browser Rendering client as `env.BROWSER` |
+| `browser.remote` | `true` | Uses Cloudflare's remote browser pool (required for the BROWSER binding) |
+| `observability.enabled` | `true` | Sends Worker logs and metrics to Cloudflare's observability platform |
+
+## npm Scripts
+
+The following scripts in `package.json` manage the Worker lifecycle:
+
+```json package.json
+{
+  "scripts": {
+    "cloudflare:whoami": "npx wrangler@4.112.0 whoami",
+    "worker:dev":        "npx wrangler@4.112.0 dev --remote",
+    "worker:deploy":     "npx wrangler@4.112.0 deploy",
+    "worker:browser":    "npx wrangler@4.112.0 browser create"
+  }
+}
+```
+
+| Script | Command | When to use |
+|---|---|---|
+| `cloudflare:whoami` | `wrangler whoami` | Verify your Cloudflare authentication before deploying |
+| `worker:dev` | `wrangler dev --remote` | Local development with the remote BROWSER binding active |
+| `worker:deploy` | `wrangler deploy` | Deploy the compiled Worker to Cloudflare |
+| `worker:browser` | `wrangler browser create` | Provision a new Browser Rendering instance in your account |
+
+<Note>
+  `worker:dev` uses `--remote` because the `BROWSER` binding requires a real remote browser pool. Running without `--remote` will bind a local Worker runtime that cannot access Cloudflare's Browser Rendering API.
+</Note>
+
+## Required Credentials
+
+Before deploying, you need two Cloudflare credentials available in your environment:
+
+| Variable | Where to find it |
+|---|---|
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Dashboard → right-hand sidebar under **Account ID** |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare Dashboard → **My Profile → API Tokens → Create Token** |
+
+<Warning>
+  Your API token must include the **Browser Rendering - Edit** permission for the `BROWSER` binding to work. A token with only `Workers Scripts: Edit` will deploy successfully but the `GET /screenshot` route will return errors at runtime.
+</Warning>
+
+Set these in your shell or in a `.env` file before running wrangler commands:
+
+```bash Terminal
+export CLOUDFLARE_ACCOUNT_ID=your_account_id
+export CLOUDFLARE_API_TOKEN=your_api_token
+```
+
+## Deploying the Worker
+
+<Steps>
+  <Step title="Authenticate with Cloudflare">
+    Run `npm run cloudflare:whoami` to confirm wrangler can reach your account. If you see an error, set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` in your environment and retry.
+
+    ```bash Terminal
+    npm run cloudflare:whoami
+    ```
+  </Step>
+  <Step title="Review wrangler.jsonc">
+    Confirm the `name`, `main`, and `compatibility_date` in `wrangler.jsonc` are correct for your account. The `browser.remote: true` setting must remain to enable the `BROWSER` binding — do not change it to `false`.
+  </Step>
+  <Step title="Test locally with the remote BROWSER binding">
+    Run the development server. The `--remote` flag connects your local Worker to Cloudflare's actual Browser Rendering pool so you can test screenshot requests before deploying.
+
+    ```bash Terminal
+    npm run worker:dev
+    ```
+
+    Then test the health and screenshot routes:
+
+    ```bash Terminal
+    # Health check
+    curl http://localhost:8787/health
+
+    # Screenshot (targets the live AI Surfer site)
+    curl "http://localhost:8787/screenshot?url=https://otdaisurfer.surf/" \
+      --output screenshot.png
+    ```
+  </Step>
+  <Step title="Deploy to Cloudflare Workers">
+    When local testing passes, deploy the Worker to your Cloudflare account:
+
+    ```bash Terminal
+    npm run worker:deploy
+    ```
+
+    Wrangler compiles `src/worker/index.ts`, uploads the script, and attaches the `BROWSER` binding. The deployed Worker URL is printed on success.
+  </Step>
+  <Step title="Verify the live Worker">
+    Hit the deployed `/health` endpoint to confirm the Worker is active and the `browserRun` field is `true`:
+
+    ```bash Terminal
+    curl https://ai-surfer-browser.<your-subdomain>.workers.dev/health
+    ```
+
+    Expected response:
+
+    ```json
+    {
+      "status": "ok",
+      "service": "ai-surfer-browser",
+      "browserRun": true
+    }
+    ```
+  </Step>
+</Steps>
+
+## Observability
+
+Because `observability.enabled` is set to `true` in `wrangler.jsonc`, the Worker automatically emits logs and request traces to Cloudflare's built-in observability dashboard. View them at **Workers & Pages → ai-surfer-browser → Observability** in the Cloudflare Dashboard — no additional configuration required.
+
+<Tip>
+  The optional `VITE_CLOUDFLARE_WORKERS_GRAFANA` environment variable in `.env.example` can be configured to send Worker metrics to an external Grafana instance if you prefer a centralized observability setup.
+</Tip>

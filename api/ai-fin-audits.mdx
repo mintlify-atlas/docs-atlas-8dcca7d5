@@ -1,0 +1,201 @@
+---
+title: "POST /api/ai-fin/audit/start — Begin an AEO Business Audit"
+sidebarTitle: "POST /ai-fin/audit"
+description: "Queue an AEO (AI Engine Optimisation) business audit in Supabase with status 'queued', given a business name and website or identifier."
+---
+
+The `/api/ai-fin/audit/start` endpoint initiates an AI Engine Optimisation (AEO) audit for a prospect's business. When a visitor or the AI-fin agent requests an audit, this endpoint creates a record in the `ai_fin_audits` Supabase table with a status of `"queued"`, ready to be processed by the audit pipeline. At least a website URL or a business identifier must be supplied — the server enforces this with a cross-field Zod refinement.
+
+## Endpoint
+
+```
+POST /api/ai-fin/audit/start
+Content-Type: application/json
+```
+
+## Request Body
+
+<ParamField body="businessName" type="string" required>
+  The name of the business to audit. Trimmed; min 1 character, max 160 characters.
+</ParamField>
+
+<ParamField body="website" type="string">
+  The business's website URL. Optional but conditionally required — at least `website` or `businessIdentifier` must be provided. Max 500 characters.
+</ParamField>
+
+<ParamField body="businessIdentifier" type="string">
+  An alternative identifier for the business, such as a Google Business Profile URL, a Yelp listing, or a local citation. Optional unless `website` is also absent. Max 500 characters.
+</ParamField>
+
+<ParamField body="contactName" type="string">
+  Name of the person requesting the audit. Optional; max 120 characters.
+</ParamField>
+
+<ParamField body="email" type="string">
+  Email address for the audit requestor. Optional; must pass email format validation if provided; max 254 characters.
+</ParamField>
+
+<ParamField body="source" type="string" default="ai-fin">
+  The origin of the audit request. Defaults to `"ai-fin"`. Must be one of:
+
+  | Value | Description |
+  |---|---|
+  | `"homepage_chat"` | Initiated from the homepage chat widget |
+  | `"aeo_page"` | Initiated from the AEO product page |
+  | `"pricing_page"` | Initiated from the pricing page |
+  | `"product_page"` | Initiated from a product-specific page |
+  | `"other"` | Any other tracked source |
+  | `"ai-fin"` | Initiated directly by the AI-fin agent (default) |
+</ParamField>
+
+## Validation Rule
+
+<Warning>
+At least one of `website` or `businessIdentifier` must be provided and non-empty. If both are absent or blank, the server returns `400 INVALID_AUDIT_PAYLOAD` with the message `"A website or business identifier is required."` on the `website` path.
+</Warning>
+
+This is enforced by a Zod cross-field `.refine()` on the schema — the error appears in `issues[0].path === "website"` even if `businessIdentifier` was the intended field.
+
+## Success Response
+
+HTTP `201 Created`
+
+```json
+{
+  "ok": true,
+  "status": "started",
+  "auditId": "550e8400-e29b-41d4-a716-446655440000",
+  "nextStep": "complete_aeo_audit"
+}
+```
+
+<ResponseField name="ok" type="boolean">
+  Always `true` on success.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Always `"started"` on success.
+</ResponseField>
+
+<ResponseField name="auditId" type="string">
+  UUID of the newly created row in `ai_fin_audits`. Use this to track audit progress.
+</ResponseField>
+
+<ResponseField name="nextStep" type="string">
+  Always `"complete_aeo_audit"`. Signals to the calling agent or frontend that the audit has been queued and the next step is to wait for or trigger the full audit run.
+</ResponseField>
+
+## Error Responses
+
+<AccordionGroup>
+  <Accordion title="400 INVALID_AUDIT_PAYLOAD — Validation failure">
+    Returned when required fields are missing, `email` is malformed, or neither `website` nor `businessIdentifier` is provided.
+
+    ```json
+    {
+      "ok": false,
+      "error": "INVALID_AUDIT_PAYLOAD",
+      "message": "I need a business name plus a website or business identifier to start the audit.",
+      "issues": [
+        {
+          "path": "website",
+          "message": "A website or business identifier is required."
+        }
+      ]
+    }
+    ```
+  </Accordion>
+  <Accordion title="500 SUPABASE_NOT_CONFIGURED — Missing credentials">
+    Returned when Supabase environment variables are absent.
+
+    ```json
+    {
+      "ok": false,
+      "error": "SUPABASE_NOT_CONFIGURED",
+      "message": "The AEO audit service is not configured on the server yet."
+    }
+    ```
+  </Accordion>
+  <Accordion title="500 AUDIT_START_FAILED — Database error">
+    Returned when the Supabase `insert` into `ai_fin_audits` fails.
+
+    ```json
+    {
+      "ok": false,
+      "error": "AUDIT_START_FAILED",
+      "message": "That audit did not start successfully yet."
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Examples
+
+<Tabs>
+  <Tab title="With website">
+    ```bash
+    curl -X POST http://localhost:3001/api/ai-fin/audit/start \
+      -H "Content-Type: application/json" \
+      -d '{
+        "businessName": "Coastal Surf Co.",
+        "website": "https://coastalsurfco.com",
+        "contactName": "Alex Barlow",
+        "email": "alex@coastalsurfco.com",
+        "source": "aeo_page"
+      }'
+    ```
+
+    ```json
+    {
+      "ok": true,
+      "status": "started",
+      "auditId": "d4e5f6a7-b8c9-0123-def0-123456789abc",
+      "nextStep": "complete_aeo_audit"
+    }
+    ```
+  </Tab>
+  <Tab title="With business identifier only">
+    ```bash
+    curl -X POST http://localhost:3001/api/ai-fin/audit/start \
+      -H "Content-Type: application/json" \
+      -d '{
+        "businessName": "Bay Area Plumbing Pros",
+        "businessIdentifier": "https://www.google.com/maps/place/Bay+Area+Plumbing+Pros",
+        "source": "homepage_chat"
+      }'
+    ```
+
+    ```json
+    {
+      "ok": true,
+      "status": "started",
+      "auditId": "f1a2b3c4-d5e6-7890-fedc-ba9876543210",
+      "nextStep": "complete_aeo_audit"
+    }
+    ```
+  </Tab>
+  <Tab title="400 error — missing identifier">
+    ```bash
+    curl -X POST http://localhost:3001/api/ai-fin/audit/start \
+      -H "Content-Type: application/json" \
+      -d '{
+        "businessName": "Mystery Business"
+      }'
+    ```
+
+    ```json
+    {
+      "ok": false,
+      "error": "INVALID_AUDIT_PAYLOAD",
+      "message": "I need a business name plus a website or business identifier to start the audit.",
+      "issues": [
+        { "path": "website", "message": "A website or business identifier is required." }
+      ]
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<Info>
+The audit record is created with `status: "queued"` in Supabase. The actual AEO analysis is performed by a separate process that reads from this table. The `auditId` can be used to poll for results or associate the audit with a lead record.
+</Info>

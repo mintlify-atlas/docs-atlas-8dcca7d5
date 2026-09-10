@@ -1,0 +1,113 @@
+---
+title: "AI Agents in AI Surfer: Sales, Support, and Growth"
+sidebarTitle: "Overview"
+description: "Meet the four AI agents powering AI Surfer — each built on SKILL.md definitions and deployed through the AI Agent Harbor to automate your marketing operations."
+---
+
+AI Surfer's agent system puts autonomous AI workers at the center of your marketing agency. Each agent is defined by a `SKILL.md` file that encodes its purpose, responsibilities, conversation rules, and workflow — giving every agent a clear job and a consistent way of operating. Members create and manage agents directly from the **AI Agent Harbor** inside the Members Dashboard, where each agent is stored in Supabase and activated immediately on creation.
+
+## How the Agent System Works
+
+Every AI Surfer agent is grounded in a `SKILL.md` definition file. These files live in the `skills/` directory of the platform and specify the agent's role, task list, conversation flow, escalation rules, and success metrics. When a new agent is launched from the Members Dashboard, the platform records it in the Supabase `agents` table with the fields below — giving you a live, queryable record of every worker in your fleet.
+
+<CardGroup cols={2}>
+  <Card title="Agent Name" icon="tag">
+    A human-readable label for the agent, entered at creation time in the AI Agent Harbor form.
+  </Card>
+  <Card title="Business Type" icon="building">
+    The industry or business category this agent is tailored to serve.
+  </Card>
+  <Card title="Purpose" icon="bullseye">
+    A free-text description of exactly what this agent should do, written by the member on creation.
+  </Card>
+  <Card title="Status" icon="circle-check">
+    Defaults to `active` on creation. Used to filter which agents are displayed in the AI Fleet view.
+  </Card>
+</CardGroup>
+
+<Note>
+  Every agent record also carries `id`, `user_id`, and `created_at` columns. Agents are scoped per authenticated user, so each member manages their own independent fleet.
+</Note>
+
+## The Four Agents
+
+AI Surfer ships four purpose-built agents, each solving a distinct part of the marketing and operations funnel.
+
+<CardGroup cols={2}>
+  <Card title="Sales Agent" icon="chart-line" href="/agents/sales-agent">
+    Converts website visitors into qualified leads through personalized AI conversations — greeting, discovery, qualification, and conversion offers built in.
+  </Card>
+  <Card title="Customer Support Agent" icon="headset" href="/agents/customer-support-agent">
+    Handles FAQs, scheduling, order questions, and basic troubleshooting around the clock, escalating to a human only when genuinely needed.
+  </Card>
+  <Card title="Review Booster Agent" icon="star" href="/agents/review-booster-agent">
+    Identifies happy customers, sends personalized review requests via Email, SMS, or Chat, monitors incoming reviews, and crafts professional responses.
+  </Card>
+  <Card title="Launch Desk Agent" icon="rocket" href="/api/launch-desk-agent">
+    An OpenAI Agents SDK-powered planning agent that turns rough launch briefs into structured release plans with priority actions, risk registers, and owner checklists.
+  </Card>
+</CardGroup>
+
+## Skills: The Agent Definition Format
+
+Each non-Launch-Desk agent is governed by a `SKILL.md` file stored in the `skills/` directory. A skill file contains five standard sections:
+
+<Accordion title="Purpose">
+  A one-sentence statement of what the agent exists to accomplish — for example, "Convert website visitors into qualified leads and customers using AI conversations."
+</Accordion>
+<Accordion title="Responsibilities / Tasks">
+  A bullet list of every discrete action the agent is authorised to take, such as welcoming visitors, answering FAQs, capturing lead information, or sending review requests.
+</Accordion>
+<Accordion title="Conversation Flow or Workflow">
+  The ordered sequence of steps the agent follows in each interaction — greeting, discovery, qualification, recommendation, conversion, and so on.
+</Accordion>
+<Accordion title="Rules">
+  Behavioural guardrails. For the Support Agent these include always being helpful, always being accurate, and escalating when a payment or security issue arises.
+</Accordion>
+<Accordion title="Metrics / Goals">
+  What the agent tracks or aims to improve — conversations started, leads captured, Google review count, customer satisfaction trends, and similar KPIs.
+</Accordion>
+
+## Launch Desk: The OpenAI Agents SDK Agent
+
+The Launch Desk agent is built differently from the skill-based agents. It is instantiated with the OpenAI Agents SDK and uses four registered tools — `extract_launch_tasks`, `check_launch_readiness`, `generate_owner_checklist`, and `draft_channel_copy` — to turn a raw launch brief into a structured plan. It always produces output under six fixed headings: Launch Snapshot, Priority Plan, Risk Register, Owner Checklist, Launch Copy, and Follow-up Questions.
+
+<Info>
+  The Launch Desk agent never invents product capabilities, dates, approvals, or metrics. Every recommendation is grounded in the brief you supply.
+</Info>
+
+## AI Products Powered by Agents
+
+The six products in the Members Dashboard each map to an agent-driven capability:
+
+| Product | What It Does |
+|---|---|
+| 🔎 **Wave Scout** | Find AI opportunities and qualified leads |
+| 💰 **Sales Rider** | Turn conversations into a repeatable sales system |
+| ✍️ **Content Creator** | Build an AI-powered content engine |
+| 💬 **Customer Care Cove** | Automate helpful customer support |
+| ⚙️ **Automation Architect** | Connect the workflows that keep business moving |
+| 🐋 **Big Kahuna** | High-touch AI strategy and implementation |
+
+## Creating an Agent
+
+Agents are created from the **AI Agent Harbor** at `/members/agents`. The form requires three fields before the "Launch AI Agent" button becomes effective:
+
+<Steps>
+  <Step title="Enter Agent Name">
+    Give your agent a recognisable label — for example, "Lead Capture Bot" or "After-Hours Support".
+  </Step>
+  <Step title="Set Business Type">
+    Describe the industry or business context, such as "E-commerce", "Local Service Business", or "SaaS".
+  </Step>
+  <Step title="Describe the Purpose">
+    Write a clear statement of what this agent should do. This text is stored in the `purpose` column and becomes the agent's operational brief.
+  </Step>
+  <Step title="Launch">
+    Click **Launch AI Agent 🚀**. The platform inserts a record into the `agents` Supabase table with `status: "active"` and immediately displays the new agent in the **Your AI Fleet** grid.
+  </Step>
+</Steps>
+
+<Tip>
+  You can delete any agent from the AI Fleet grid at any time. Agents are filtered by `user_id`, so members in a shared workspace never see each other's fleet.
+</Tip>

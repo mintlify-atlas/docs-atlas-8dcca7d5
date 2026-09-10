@@ -1,0 +1,196 @@
+---
+title: "AI Wave Audit: Score Your Business AI Readiness"
+sidebarTitle: "Wave Audit"
+description: "A scored 5-question questionnaire that calculates your AI Opportunity Score™ out of 100 and surfaces the highest-impact AI agent for your business."
+---
+
+The AI Wave Audit is AI Surfer's signature diagnostic tool — a five-question business questionnaire that produces an **AI Opportunity Score™** out of 100 and maps your biggest growth lever to a specific AI Surfer agent. Unlike a generic quiz, every answer feeds a weighted scoring algorithm that evaluates your business across five capability categories: leads, operations, content, support, and visibility. When you finish, you receive a teaser Wave Map immediately and a complete 30-day Wave Plan delivered to your inbox.
+
+<Note>
+  The Wave Audit is a separate, deeper product from the free [Wave Check](/features/wave-check). Wave Check is a 3-question readiness quiz; the Wave Audit is a 5-question scored assessment that produces a full AI Wave Report. The full Wave Audit report is available for **$97** as part of the AEO Wave Audit package.
+</Note>
+
+## The Five Audit Questions
+
+The audit walks you through five targeted questions. Each answer option is carefully weighted to reflect real AI opportunity signals in your business context.
+
+<Accordion title="Question 1 — What type of business do you run?">
+  | Answer | Description |
+  |--------|-------------|
+  | **Service business** | Agencies, contractors, consulting, professional services |
+  | **Local business** | Retail, restaurant, salon, home services and more |
+  | **E-commerce** | Online store or product-based business |
+  | **Multi-location** | Several teams, branches, or locations |
+</Accordion>
+
+<Accordion title="Question 2 — How big is your team?">
+  | Answer | Description |
+  |--------|-------------|
+  | **Just me** | Founder or solo operator |
+  | **2–10 people** | Small team with multiple hats |
+  | **11–50 people** | Growing operation |
+  | **51+ people** | Larger team or organization |
+</Accordion>
+
+<Accordion title="Question 3 — What takes up the most time every week?">
+  | Answer | Description |
+  |--------|-------------|
+  | **Repetitive admin** | Copying, updating, sorting, reporting, handoffs |
+  | **Customer questions** | FAQs, support requests, status updates |
+  | **Marketing content** | Posts, emails, campaigns, creative production |
+  | **A little of everything** | Several recurring tasks are eating the week |
+</Accordion>
+
+<Accordion title="Question 4 — Where are you losing the most opportunities?">
+  | Answer | Description |
+  |--------|-------------|
+  | **Finding new leads** | Not enough qualified opportunities coming in |
+  | **Following up** | Good leads go quiet or wait too long |
+  | **Internal workflows** | Slow processes and manual bottlenecks |
+  | **Several areas** | More than one major leak needs attention |
+</Accordion>
+
+<Accordion title="Question 5 — What would you most like AI to improve first?">
+  | Answer | Description |
+  |--------|-------------|
+  | **Sales & follow-up** | Respond faster and convert more opportunities |
+  | **Automation** | Remove repetitive work and connect systems |
+  | **Marketing & content** | Create and distribute better content |
+  | **Customer care** | Answer routine questions and improve service |
+  | **A full AI makeover** | Several areas could benefit at once |
+</Accordion>
+
+## How Scoring Works
+
+Your AI Opportunity Score™ is calculated out of 100. The algorithm starts with a base score of **28** and adds weighted bonus points for each answer. Larger teams, multi-location operations, and businesses with multiple high-friction areas accumulate higher scores because they have more surface area for AI to improve.
+
+### Score Bonuses by Question
+
+<Tabs>
+  <Tab title="Business Type">
+    | Answer | Bonus Points |
+    |--------|-------------|
+    | Multi-location | +14 |
+    | E-commerce | +10 |
+    | Service business | +8 |
+    | Local business | +7 |
+  </Tab>
+  <Tab title="Team Size">
+    | Answer | Bonus Points |
+    |--------|-------------|
+    | 51+ people | +16 |
+    | 11–50 people | +12 |
+    | 2–10 people | +8 |
+    | Just me | +5 |
+  </Tab>
+  <Tab title="Time Drain">
+    | Answer | Bonus Points |
+    |--------|-------------|
+    | A little of everything | +16 |
+    | Repetitive admin | +14 |
+    | Marketing content | +10 |
+    | Customer questions | +10 |
+  </Tab>
+  <Tab title="Lost Opportunity">
+    | Answer | Bonus Points |
+    |--------|-------------|
+    | Several areas | +20 |
+    | Finding new leads | +17 |
+    | Following up | +15 |
+    | Internal workflows | +13 |
+  </Tab>
+  <Tab title="AI Priority">
+    | Answer | Bonus Points |
+    |--------|-------------|
+    | A full AI makeover | +20 |
+    | Sales & follow-up | +17 |
+    | Automation | +16 |
+    | Marketing & content | +13 |
+    | Customer care | +12 |
+  </Tab>
+</Tabs>
+
+### Opportunity Levels
+
+After calculating the raw score plus a category-normalisation bonus, answers are mapped to one of three opportunity levels:
+
+| Score Range | Label |
+|-------------|-------|
+| 82 – 100 | High opportunity |
+| 65 – 81 | Strong opportunity |
+| Below 65 | Emerging opportunity |
+
+## Category Scoring and Recommended Agents
+
+In parallel with the overall score, the algorithm accumulates points across five **business capability categories**. Answers to questions 3, 4, and 5 contribute category points. If you answer "a little of everything" or "several areas" to two or more of those questions, the system flags a multi-area transformation scenario and recommends **Big Kahuna** instead of a single-category agent.
+
+| Category | Label | Recommended Agent |
+|----------|-------|------------------|
+| `leads` | Lead & Sales Follow-Up | Sales Rider |
+| `operations` | Workflow Automation | Automation Architect |
+| `content` | Content & Marketing | Content Creator |
+| `support` | Customer Care | Customer Care Cove |
+| `visibility` | Opportunity Discovery | Wave Scout |
+
+### The `WaveAuditResult` Shape
+
+The scoring function returns a typed result object with the following fields:
+
+```typescript src/features/wave-audit/scoring.ts
+type WaveAuditResult = {
+  score: number;          // 0–100, the AI Opportunity Score™
+  topCategory: string;    // Human-readable category label
+  opportunities: string[]; // 1–2 actionable opportunity sentences
+  recommendedAgent: AuditAgent; // e.g. "Sales Rider" | "Big Kahuna"
+  confidenceLabel: string; // "High opportunity" | "Strong opportunity" | "Emerging opportunity"
+}
+```
+
+## User Flow
+
+<Steps>
+  <Step title="Answer Question 1 of 5">
+    Select your business type. The answer is recorded and the questionnaire immediately advances to question 2 after a 180 ms transition. A progress bar tracks completion.
+  </Step>
+  <Step title="Answer Questions 2 – 5">
+    Work through team size, time drain, lost opportunity, and AI priority. You can step back at any time using the Back button to revise a previous answer.
+  </Step>
+  <Step title="View Your Teaser Wave Map">
+    Once all five answers are recorded, your AI Opportunity Score™ and top category are calculated client-side and displayed instantly — no server round trip required. You see your score out of 100, your opportunity level, two opportunity insights, and your recommended agent.
+  </Step>
+  <Step title="Enter Your Email">
+    To unlock the full 30-day Wave Plan, enter your email address. Clicking **Open My Full AI Wave Report** submits the email, answers, and scored result to Supabase via `saveWaveAuditLead`. A unique `submissionId` (UUID) is generated per submission to prevent duplicate records.
+  </Step>
+  <Step title="Receive Your Full Wave Report">
+    After the lead is confirmed saved, the `FullWaveReport` component renders in-page. Your full report includes your 30-day Wave Plan, a practical first move, and details on the AI Surfer service that matches your biggest opportunity.
+  </Step>
+</Steps>
+
+## Email Capture and Lead Storage
+
+The email step is intentionally placed *after* the questionnaire so users experience the score before being asked for contact details. The platform generates a UUID `submissionId` on form submit. If the Supabase write fails, the UI surfaces a retry prompt — the submission ID ensures the retry cannot create a duplicate record.
+
+```typescript src/features/wave-audit/leadCapture.ts
+await saveWaveAuditLead({
+  email,
+  answers,    // WaveAuditAnswers — all five responses
+  result,     // WaveAuditResult — score, category, recommended agent
+  source: "wave-audit",
+  submissionId: crypto.randomUUID(),
+});
+```
+
+<Tip>
+  If your business spans multiple high-friction areas — answering "several areas" or "a little of everything" on two or more of questions 3–5 — the algorithm skips the single-category recommendation and suggests **Big Kahuna**, AI Surfer's full multi-area transformation package.
+</Tip>
+
+## Wave Audit vs. Wave Check
+
+<CardGroup cols={2}>
+  <Card title="Wave Check (Free)" icon="check-circle">
+    A 3-question readiness quiz. Takes under 60 seconds. Scores from 3–12 and delivers three readiness tiers. AI Action Plan sent by email. No payment required.
+  </Card>
+  <Card title="AEO Wave Audit ($97)" icon="sparkles">
+    A 5-question scored assessment with a weighted 100-point algorithm. Produces a category breakdown, recommended agent, and full 30-day Wave Plan. Results saved to Supabase.
+  </Card>
+</CardGroup>

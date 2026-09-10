@@ -1,47 +1,189 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with AI Surfer in Under 5 Minutes"
+sidebarTitle: "Quickstart"
+description: "Clone the AI Surfer repo, install dependencies, configure your .env, and run the Vite frontend and Express backend locally in under five minutes."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
+This guide walks you through getting a fully functional local development environment running — frontend Vite dev server on port `5173` and the Express 5 backend API on port `3001`. By the end you'll be able to open the app in your browser, trigger the health check endpoint, and start exploring every feature from Wave Audit to the Launch Desk agent.
 
 ## Prerequisites
 
-Before you begin, you must have:
+Before you begin, make sure you have the following ready:
 
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
+<CardGroup cols={2}>
+  <Card title="Node.js ≥ 18" icon="node-js">
+    AI Surfer requires Node.js 18 or higher. Run `node -v` to check your version. [Download Node.js](https://nodejs.org)
+  </Card>
+  <Card title="npm ≥ 9" icon="box">
+    npm 9+ ships with Node.js 18+. Run `npm -v` to verify.
+  </Card>
+  <Card title="Supabase Project" icon="database">
+    You need a Supabase project URL and anon key. Create a free project at [supabase.com](https://supabase.com).
+  </Card>
+  <Card title="Stripe Account" icon="credit-card">
+    A Stripe account with a publishable key, secret key, and webhook secret is required for billing features. [stripe.com](https://stripe.com)
+  </Card>
+  <Card title="OpenAI API Key" icon="microchip">
+    The Launch Desk agent and AI Fin pipeline require an OpenAI API key with access to `gpt-5.6-terra` or a compatible model. [platform.openai.com](https://platform.openai.com)
+  </Card>
+  <Card title="Git" icon="code-branch">
+    Git must be installed to clone the repository. Run `git --version` to confirm.
+  </Card>
+</CardGroup>
 
-## Get started
+## Setup Steps
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  ### Clone the repository
 
-    ```bash
-    npm install your-package
-    ```
-  </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+  Clone the AI Surfer repository from GitHub and change into the project directory:
 
-    ```bash
-    your-cli init
-    ```
-  </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+  ```bash
+  git clone https://github.com/otdaisurfer/AI-Surfer-.git
+  cd AI-Surfer-
+  ```
 
-    ```bash
-    your-cli start
-    ```
-  </Step>
+  The repository is a TypeScript monorepo. The Vite SPA lives in `src/` alongside the Express server at `src/server/app.ts`. Both share the `@/*` path alias which resolves to `src/*`.
+
+  ### Install dependencies
+
+  Install all production and development dependencies with a single command:
+
+  ```bash
+  npm install
+  ```
+
+  This installs React 19, Express 5, the OpenAI Agents SDK, Supabase client, Stripe, Framer Motion, Zod, Vitest, and all other packages listed in `package.json`. Expect around 600–800 packages on a fresh install.
+
+  ### Configure environment variables
+
+  Copy the environment template to a local `.env` file:
+
+  ```bash
+  cp .env.example .env
+  ```
+
+  Then open `.env` in your editor and fill in your real credentials. At minimum, populate:
+
+  ```bash .env
+  # Supabase
+  VITE_SUPABASE_URL=https://your-project.supabase.co
+  VITE_SUPABASE_ANON_KEY=your_anon_key
+  SUPABASE_URL=https://your-project.supabase.co
+  SUPABASE_ANON_KEY=your_anon_key
+
+  # OpenAI
+  OPENAI_API_KEY=sk-...
+
+  # Stripe
+  VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...
+  STRIPE_SECRET_KEY=sk_test_...
+  STRIPE_WEBHOOK_SECRET=whsec_...
+  ```
+
+  See the [Environment Setup](/environment-setup) page for a full breakdown of every variable, including Cloudflare credentials and optional feature flags.
+
+  ### Start the frontend
+
+  Start the Vite development server:
+
+  ```bash
+  npm run dev
+  ```
+
+  Vite starts on **[http://localhost:5173](http://localhost:5173)** with hot module replacement enabled. The dev server is configured in `vite.config.ts`:
+
+  ```typescript vite.config.ts
+  import { defineConfig } from "vite";
+  import react from "@vitejs/plugin-react";
+
+  export default defineConfig({
+    plugins: [react()],
+    server: {
+      port: 5173,
+    },
+  });
+  ```
+
+  ### Start the backend
+
+  In a second terminal, start the Express API server with live-reload watch mode:
+
+  ```bash
+  npm run server:dev
+  ```
+
+  This runs `tsx watch src/server/app.ts`, which hot-reloads the server on every TypeScript file change. The server starts on **[http://localhost:3001](http://localhost:3001)** and logs:
+
+  ```
+  🌊 AI Backend running on http://localhost:3001
+  ```
+
+  The server registers the following routes on startup:
+
+  | Method | Path | Handler |
+  |---|---|---|
+  | `GET` | `/health` | Health check |
+  | `POST` | `/api/launch` | Launch Desk agent (SSE stream) |
+  | `POST` | `/api/ai-fin/leads` | AI Fin lead capture |
+  | `POST` | `/api/ai-fin/audit/start` | AI Fin audit start |
+  | `POST` | `/api/ai-fin/handoff` | AI Fin handoff |
+  | `POST` | `/api/ai-fin/follow-up` | AI Fin follow-up |
+  | `POST` | `/api/ai-fin/onboarding` | AI Fin onboarding |
+  | `GET` | `/api/dashboard` | Agent metrics dashboard |
+
+  ### Verify with a health check
+
+  Confirm both services are connected correctly by querying the health endpoint:
+
+  ```bash
+  curl http://localhost:3001/health
+  ```
+
+  You should receive a JSON response similar to:
+
+  ```json
+  {
+    "status": "ok",
+    "service": "launch-desk-api",
+    "openaiConfigured": true,
+    "supabaseConfigured": true
+  }
+  ```
+
+  The `openaiConfigured` field is `true` when `OPENAI_API_KEY` is set. The `supabaseConfigured` field is `true` when both a Supabase URL and anon key are present (from either the `SUPABASE_*` or `VITE_SUPABASE_*` variables). If either field returns `false`, check your `.env` file and restart the server.
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+## What's Running
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+After completing all steps you have two processes:
+
+<CardGroup cols={2}>
+  <Card title="Vite Frontend" icon="browser">
+    **http://localhost:5173** — React 19 SPA with the full routing tree: landing page, Wave Audit, Pricing, Auth, Members Dashboard, and Launch Desk.
+  </Card>
+  <Card title="Express Backend" icon="server">
+    **http://localhost:3001** — Express 5 API with all AI Fin endpoints, the Launch Desk SSE stream, the health check, and the agent metrics dashboard.
+  </Card>
+</CardGroup>
+
+<Note>
+  Wave Audit lead capture, Launch Desk agent streaming, and the Members Dashboard tier lookup all require real Supabase, Stripe, and OpenAI credentials respectively. The health endpoint and the Wave Audit questionnaire UI will work without them, but any operation that writes to the database or calls an AI model will return an error until credentials are configured. See [Environment Setup](/environment-setup) for details.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Setup" icon="sliders" href="/environment-setup">
+    Full reference for every environment variable grouped by service, including optional Cloudflare and feature-flag settings.
+  </Card>
+  <Card title="Wave Audit" icon="wave-square" href="/features/wave-audit">
+    Explore how the scored questionnaire works, from question definitions to the scoring engine and lead capture flow.
+  </Card>
+  <Card title="Launch Desk" icon="rocket" href="/features/launch-desk">
+    See how the Launch Desk agent accepts a product brief, scores readiness, and streams a release plan back to the browser.
+  </Card>
+  <Card title="API Overview" icon="code" href="/api/overview">
+    Browse the complete server API reference, including all AI Fin endpoint schemas and the Launch Desk SSE event format.
+  </Card>
+</CardGroup>

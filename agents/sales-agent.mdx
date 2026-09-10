@@ -1,0 +1,144 @@
+---
+title: "AI Sales Agent: Convert Visitors into Qualified Leads"
+sidebarTitle: "Sales Agent"
+description: "The AI Sales Agent greets visitors, discovers their needs, qualifies them, and offers appointments or demos — turning passive traffic into a repeatable lead pipeline."
+---
+
+The AI Sales Agent is AI Surfer's front-line revenue worker. Powered by the `otd-sales-agent` skill, it acts as a virtual sales assistant for Ocean Tide Drop AI SURFER — engaging every website visitor in a natural conversation, uncovering their needs, and moving them toward a concrete next step. No lead form required, no human availability constraint, no gap in your sales coverage.
+
+## Purpose
+
+The Sales Agent exists to **convert website visitors into qualified leads and customers using AI conversations**. It runs at all hours, handles unlimited simultaneous conversations, and passes clean, qualified lead data to your CRM or Supabase pipeline the moment a visitor converts.
+
+## Responsibilities
+
+The agent is authorised to perform the following tasks on your behalf:
+
+- Welcome website visitors with a friendly, personalised greeting
+- Answer common questions about your products and services
+- Identify each visitor's underlying business need
+- Recommend the most relevant product or service match
+- Capture lead information (name, email, phone, business needs)
+- Schedule appointments directly in the conversation
+- Follow up with prospects who did not convert on first contact
+
+## Conversation Flow
+
+Every sales conversation follows a five-stage flow designed to move visitors from curiosity to commitment without feeling scripted or pushy.
+
+<Steps>
+  <Step title="Greeting">
+    The agent opens with a friendly, personalised welcome message. The tone is warm and human — never robotic — and immediately signals that help is available.
+  </Step>
+  <Step title="Discovery">
+    The agent asks open-ended questions to understand what the visitor is actually looking for:
+
+    - *What are you looking for?*
+    - *What problem are you trying to solve?*
+    - *What is your timeline?*
+
+    These three questions surface intent, urgency, and context without feeling like an interrogation.
+  </Step>
+  <Step title="Qualification">
+    Once the visitor's needs are clear, the agent collects the information your sales team needs to follow up:
+
+    | Field | Required |
+    |---|---|
+    | Name | Yes |
+    | Email | Yes |
+    | Phone | Optional |
+    | Business needs | Yes |
+
+  </Step>
+  <Step title="Recommendation">
+    Using the information gathered in Discovery and Qualification, the agent suggests the best-fit solution from your product or service catalogue. Recommendations are grounded in the visitor's stated needs — not a generic pitch.
+  </Step>
+  <Step title="Conversion">
+    The agent presents a clear call to action matched to the visitor's readiness level:
+
+    - **Appointment** — book a call with your team
+    - **Free audit** — start with the AI Wave Audit
+    - **Demo** — see the product in action
+    - **Purchase** — proceed directly to checkout or onboarding
+  </Step>
+</Steps>
+
+## Qualification Data Collected
+
+<CardGroup cols={2}>
+  <Card title="Name" icon="user">
+    The visitor's first and last name, used to personalise all subsequent communication and CRM records.
+  </Card>
+  <Card title="Email" icon="envelope">
+    The primary contact address for follow-up sequences, onboarding flows, and campaign targeting.
+  </Card>
+  <Card title="Phone (Optional)" icon="phone">
+    Collected when the visitor is comfortable sharing it — useful for SMS follow-up or same-day appointment confirmation.
+  </Card>
+  <Card title="Business Needs" icon="briefcase">
+    A plain-language description of the visitor's problem or goal, recorded verbatim so your sales team has full context before the first call.
+  </Card>
+</CardGroup>
+
+## Conversion Offers
+
+The agent is equipped with four conversion offers it can extend depending on where the visitor is in their decision-making process:
+
+<Accordion title="Appointment">
+  The highest-intent offer — the agent invites the visitor to schedule a direct call or meeting with your team. Best used when the visitor has expressed a specific, urgent need and the qualification data is complete.
+</Accordion>
+<Accordion title="Free Audit">
+  The AI Wave Audit is AI Surfer's no-cost entry point. Offering the audit works well for visitors who are interested but not yet ready to commit — it delivers immediate value and creates a natural follow-up touchpoint.
+</Accordion>
+<Accordion title="Demo">
+  A product walkthrough offer for visitors who want to see capabilities before deciding. The agent positions the demo as low-commitment and high-value, removing the risk perception from moving forward.
+</Accordion>
+<Accordion title="Purchase">
+  For visitors who arrive ready to buy, the agent can move them directly into your purchase or onboarding flow, reducing friction and capturing revenue before intent fades.
+</Accordion>
+
+## Metrics Tracked
+
+The Sales Agent tracks the following performance indicators to help you understand pipeline health and conversation quality:
+
+<CardGroup cols={2}>
+  <Card title="Conversations" icon="comments">
+    Total number of conversations initiated — the top-of-funnel volume metric.
+  </Card>
+  <Card title="Leads Captured" icon="users">
+    Visitors who completed the qualification step and submitted contact information.
+  </Card>
+  <Card title="Conversion Rate" icon="arrow-trend-up">
+    The ratio of leads captured to total conversations started.
+  </Card>
+  <Card title="Common Questions" icon="circle-question">
+    The most frequently asked questions across all conversations — surfaces content gaps and FAQ opportunities.
+  </Card>
+  <Card title="Customer Sentiment" icon="face-smile">
+    An aggregate read on how visitors feel during and after conversations — flags friction points and coaching opportunities.
+  </Card>
+</CardGroup>
+
+## Configuring Your Sales Agent
+
+Sales Agents are created and managed from the **AI Agent Harbor** at `/members/agents`. When you create a Sales Agent, the record is written to the Supabase `agents` table and becomes active immediately.
+
+<Steps>
+  <Step title="Navigate to AI Agent Harbor">
+    Open the Members Dashboard and go to `/members/agents`. You'll see the **Create New AI Agent** form at the top of the page.
+  </Step>
+  <Step title="Fill in the Agent Fields">
+    Enter a descriptive **Agent name** (e.g. "Website Sales Bot"), set the **Business type** to match your industry (e.g. "Digital Marketing Agency"), and write a clear **Purpose** statement describing your sales goals and target audience.
+  </Step>
+  <Step title="Launch the Agent">
+    Click **Launch AI Agent 🚀**. The agent is inserted into Supabase with `status: "active"` and appears in your **Your AI Fleet** grid.
+  </Step>
+</Steps>
+
+<Warning>
+  All three fields — Agent name, Business type, and Purpose — are required before the agent can be launched. Leaving any field blank will prompt a validation alert.
+</Warning>
+
+<Tip>
+  Write a specific, detailed purpose statement. The more context you give the agent about your business, your ideal customer, and your conversion goals, the more relevant its conversations will be.
+</Tip>

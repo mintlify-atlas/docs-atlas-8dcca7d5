@@ -1,0 +1,125 @@
+---
+title: "AI Surfer Server API: Endpoints and Authentication"
+sidebarTitle: "Overview"
+description: "Complete reference for the AI Surfer Express 5 backend — base URLs, authentication, request/response conventions, and links to every endpoint."
+---
+
+The AI Surfer backend is an Express 5 server that powers all AI-fin agent interactions, lead capture, audit queuing, human handoffs, and the Launch Desk streaming endpoint. It runs on port `3001` by default (override with the `PORT` environment variable) and serves a clean JSON API with consistent error and success envelopes understood by the React frontend.
+
+## Base URL
+
+| Environment | Base URL |
+|---|---|
+| Local development | `http://localhost:3001` |
+| Production | Set `VITE_API_URL` to your deployed Worker or Pages Function URL |
+
+```bash
+# Start the backend in development
+npm run server
+# → 🌊 AI Backend running on http://localhost:3001
+```
+
+## Authentication
+
+The server uses open CORS in development — all origins are allowed by default. There is no token-based authentication on the AI-fin endpoints; they are designed to be called by the on-site AI-fin agent running on your domain. The `/health` endpoint is publicly accessible and does not require any credentials.
+
+<Note>
+For production deployments, place the API server behind Cloudflare Access or add your own middleware to restrict origin. The `cors()` middleware currently permits all origins without restriction.
+</Note>
+
+## Request Conventions
+
+All `POST` endpoints accept and return `application/json`. The body size limit is **1 MB** enforced by Express.
+
+| Rule | Value |
+|---|---|
+| `Content-Type` | `application/json` |
+| Body size limit | 1 MB |
+| Character encoding | UTF-8 |
+| UUID generation | Node.js `crypto.randomUUID()` |
+
+## Response Envelopes
+
+Every endpoint returns a consistent JSON envelope regardless of outcome.
+
+**Success**
+
+```json
+{
+  "ok": true,
+  "status": "saved",
+  "leadId": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**Error**
+
+```json
+{
+  "ok": false,
+  "error": "INVALID_LEAD_PAYLOAD",
+  "message": "I need a few valid lead details before I can save this.",
+  "issues": [
+    { "path": "email", "message": "Invalid email" }
+  ]
+}
+```
+
+The `issues` array is only present on `400` validation errors. The `error` field is a machine-readable code your client can switch on.
+
+## Health Check
+
+`GET /health` returns the live configuration status of the server — whether OpenAI and Supabase credentials are present.
+
+```bash
+curl http://localhost:3001/health
+```
+
+```json
+{
+  "status": "ok",
+  "service": "launch-desk-api",
+  "openaiConfigured": true,
+  "supabaseConfigured": true
+}
+```
+
+<Info>
+`openaiConfigured` reflects whether `OPENAI_API_KEY` is set. `supabaseConfigured` is `true` when both a Supabase URL (`SUPABASE_URL` or `VITE_SUPABASE_URL`) and an anon key (`SUPABASE_ANON_KEY` or `VITE_SUPABASE_ANON_KEY`) are present.
+</Info>
+
+## Endpoint Index
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Server and configuration health check |
+| `POST` | `/api/launch` | Stream a launch plan from the Launch Desk agent (SSE) |
+| `POST` | `/api/ai-fin/leads` | Validate and persist a qualified lead to Supabase |
+| `POST` | `/api/ai-fin/audit/start` | Queue an AEO business audit |
+| `POST` | `/api/ai-fin/handoff` | Queue a human review request |
+| `POST` | `/api/ai-fin/follow-up` | Queue a follow-up message for a lead |
+| `POST` | `/api/ai-fin/onboarding` | Start the client onboarding flow and check Stripe readiness |
+| `GET` | `/api/dashboard` | Internal agent metrics dashboard |
+
+## Explore the Endpoints
+
+<CardGroup cols={2}>
+  <Card title="POST /api/launch" icon="rocket" href="/api/launch">
+    Stream a structured release plan from the Launch Desk OpenAI agent using Server-Sent Events.
+  </Card>
+  <Card title="POST /api/ai-fin/leads" icon="user-plus" href="/api/ai-fin-leads">
+    Capture and persist AI-qualified leads with full qualification metadata to Supabase.
+  </Card>
+  <Card title="POST /api/ai-fin/audit/start" icon="magnifying-glass" href="/api/ai-fin-audits">
+    Begin an AEO business audit by queuing a record in the `ai_fin_audits` table.
+  </Card>
+  <Card title="POST /api/ai-fin/handoff" icon="person-arrow-up-from-line" href="/api/ai-fin-handoffs">
+    Queue a human review request when the AI agent cannot proceed autonomously.
+  </Card>
+  <Card title="POST /api/ai-fin/follow-up" icon="envelope" href="/api/ai-fin-follow-ups">
+    Queue a follow-up message for a lead after recommendation or handoff.
+  </Card>
+  <Card title="POST /api/ai-fin/onboarding" icon="flag-checkered" href="/api/ai-fin-onboarding">
+    Kick off client onboarding and receive Stripe checkout configuration status.
+  </Card>
+</CardGroup>

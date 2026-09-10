@@ -1,0 +1,112 @@
+---
+title: "Wave Check: Free AI Readiness Quiz for Your Business"
+sidebarTitle: "Wave Check"
+description: "A free 3-question AI readiness quiz that scores your business from 3–12 and delivers a personalised AI Action Plan straight to your inbox via Supabase."
+---
+
+The Wave Check is AI Surfer's free entry-point assessment — a lightweight, three-question quiz that measures your business's current AI readiness and scores it across three tiers. It takes under 60 seconds to complete. When you finish, you choose an email address and AI Surfer sends your personalised **AI Action Plan** directly to your inbox. No payment or account is required to take the quiz.
+
+<Info>
+  Wave Check is designed as a fast first step. If you want a deeper, scored breakdown across five business capability categories with a recommended AI agent and a 30-day Wave Plan, see the [AI Wave Audit](/features/wave-audit) ($97).
+</Info>
+
+## The Three Questions
+
+Every answer carries a point value from 1 to 4 based on its position in the answer list. The minimum possible score is **3** (all first answers) and the maximum is **12** (all fourth answers).
+
+<Accordion title="Question 1 — What best describes your business right now?">
+  | Answer | Points |
+  |--------|--------|
+  | 🌱 Just starting out | 1 |
+  | 🚀 Growing and looking for efficiency | 2 |
+  | ⚙️ Already using some automation | 3 |
+  | 🌊 Ready for advanced AI systems | 4 |
+</Accordion>
+
+<Accordion title="Question 2 — How are you currently handling repetitive tasks?">
+  | Answer | Points |
+  |--------|--------|
+  | ✋ Mostly manual work | 1 |
+  | 📋 Some tools and templates | 2 |
+  | 🤖 A few automations | 3 |
+  | 🧠 AI is part of our workflow | 4 |
+</Accordion>
+
+<Accordion title="Question 3 — What is your biggest AI goal?">
+  | Answer | Points |
+  |--------|--------|
+  | ⏰ Save time | 1 |
+  | 👥 Get more customers | 2 |
+  | ⚙️ Improve operations | 3 |
+  | 🌊 Build a complete AI-powered business | 4 |
+</Accordion>
+
+## Readiness Levels
+
+After the third question, Wave Check tallies your cumulative score and maps it to one of three readiness tiers displayed on the results screen.
+
+| Score Range | Tier Label | Meaning |
+|-------------|-----------|---------|
+| 3 – 5 | 🌱 Beginner Wave | AI adoption is at the starting line — great foundations ahead |
+| 6 – 9 | 🚀 Rising AI Swell | You have tools and habits in place, ready to accelerate |
+| 10 – 12 | 🌊 Tsunami AI Ready | Advanced readiness — time to build full AI systems |
+
+The same three-tier labels are used when the lead record is written to Supabase, stored in the `ai_level` column alongside your raw `ai_score`.
+
+## What You Receive: The AI Action Plan
+
+At the results screen you can request your AI Action Plan by email. Wave Check calls `window.prompt` to collect your address, then inserts a record into the Supabase `leads` table with the following fields:
+
+```typescript src/pages/wavecheck/WaveCheck.tsx
+await supabase.from("leads").insert([
+  {
+    email,          // collected via prompt
+    ai_score: score, // numeric total, 3–12
+    ai_level: aiLevel, // "Beginner Wave" | "Rising AI Swell" | "Tsunami AI Ready"
+    source: "WaveCheck",
+  },
+]);
+```
+
+The AI Action Plan itself is tailored to your readiness level and sent to the address you provide. It outlines a practical starting point for bringing AI into the areas of your business that matter most.
+
+## User Flow
+
+<Steps>
+  <Step title="Land on Wave Check">
+    The intro screen presents the quiz title and a **Catch My Wave 🏄‍♀️** button. The quiz has not started yet — no questions are shown until you opt in.
+  </Step>
+  <Step title="Answer Question 1 of 3">
+    Select the answer that best describes your current business stage. Your choice is scored (1–4 points) and the quiz immediately advances to question 2. A progress indicator shows "Wave Check 1 of 3."
+  </Step>
+  <Step title="Answer Questions 2 and 3">
+    Choose how you handle repetitive tasks, then choose your biggest AI goal. Each tap advances the quiz. There is no back button — the flow is intentionally frictionless.
+  </Step>
+  <Step title="View Your Readiness Score">
+    The results screen shows your score out of 12, your tier label (Beginner Wave, Rising AI Swell, or Tsunami AI Ready), and a short message: *"Your AI journey has been mapped. The next wave is waiting."*
+  </Step>
+  <Step title="Request Your AI Action Plan">
+    Click **📩 Send My AI Action Plan**. A browser prompt asks for your email. After you enter it, the record is written to Supabase and a confirmation alert appears: *"🌊 Your AI Action Plan is on the way!"*
+  </Step>
+</Steps>
+
+## Wave Check vs. Wave Audit
+
+The two assessments serve different moments in the customer journey. Wave Check is the fastest path to a useful first insight; the Wave Audit is a deeper investment that produces a scored, agent-matched, multi-category report.
+
+<CardGroup cols={2}>
+  <Card title="Wave Check" icon="bolt" href="/features/wave-check">
+    **Free · 3 questions · ~60 seconds**
+
+    Scores 3–12. Three readiness tiers. AI Action Plan by email. No account needed. Powered directly by Supabase client-side insert.
+  </Card>
+  <Card title="AI Wave Audit" icon="chart-bar" href="/features/wave-audit">
+    **$97 · 5 questions · Full report**
+
+    Scores 0–100. Five capability categories. Recommended agent. 30-day Wave Plan. Lead saved with UUID deduplication. Results shown in-page.
+  </Card>
+</CardGroup>
+
+<Warning>
+  If the Supabase insert fails during the Wave Check email step, the user sees an alert: *"The wave got choppy. Please try again."* No retry mechanism exists in the free quiz — users should attempt the submission again if this occurs.
+</Warning>

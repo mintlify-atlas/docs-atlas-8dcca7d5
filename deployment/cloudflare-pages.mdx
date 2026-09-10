@@ -1,0 +1,121 @@
+---
+title: "Deploy AI Surfer to Cloudflare Pages"
+sidebarTitle: "Cloudflare Pages"
+description: "Connect your GitHub repo to Cloudflare Pages, configure VITE_ environment variables, and ship the AI Surfer frontend in minutes."
+---
+
+Cloudflare Pages hosts the AI Surfer React frontend — the public-facing site at `otdaisurfer.surf`. Every push to your connected GitHub repository triggers an automatic build using Vite, and the compiled `dist/` directory is distributed globally across Cloudflare's edge network with zero server management. The `POST /api/site-health` endpoint also runs inside this Pages deployment via a Cloudflare Functions route, consuming the Browser Run API to screenshot and inspect the live site.
+
+## Build Configuration
+
+When you connect the repository to Cloudflare Pages, use these build settings:
+
+<CardGroup cols={2}>
+  <Card title="Framework Preset" icon="bolt">
+    **Vite** — Cloudflare Pages detects Vite automatically, but you can select it explicitly in the Build settings panel.
+  </Card>
+  <Card title="Build Command" icon="terminal">
+    `npm run build` — runs `vite build` and outputs compiled assets to `dist/`.
+  </Card>
+  <Card title="Output Directory" icon="folder">
+    `dist` — the directory Cloudflare Pages deploys to the edge.
+  </Card>
+  <Card title="Node.js Version" icon="cube">
+    **18 or higher** — set `NODE_VERSION=18` in environment variables to match the `engines` field in `package.json`.
+  </Card>
+</CardGroup>
+
+## Environment Variables
+
+AI Surfer's frontend reads configuration through `VITE_`-prefixed variables, which Vite inlines into the browser bundle at build time. Set these in the **Environment Variables** section of your Cloudflare Pages project settings.
+
+<Warning>
+  Any variable with the `VITE_` prefix is compiled directly into the JavaScript bundle and is **publicly visible** to anyone who inspects your site. Never store Stripe secret keys, OpenAI API keys, Supabase service-role keys, or any other secret in a `VITE_*` variable.
+</Warning>
+
+| Variable | Purpose |
+|---|---|
+| `VITE_SUPABASE_URL` | Public Supabase project URL for the browser client |
+| `VITE_SUPABASE_ANON_KEY` | Supabase publishable (anon) key — safe to expose in the browser |
+| `VITE_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key for client-side Stripe.js |
+| `VITE_STRIPE_PUBLIC_KEY` | Alias for Stripe publishable key used by some components |
+| `VITE_API_URL` | URL of the Express backend (e.g. `https://your-api.onrender.com`) |
+| `VITE_GOOGLE_API_KEY` | Google API key for any browser-side Google integrations |
+| `VITE_CLOUDFLARE_WORKERS_GRAFANA` | Optional Grafana endpoint for the Workers observability dashboard |
+
+<Note>
+  In local development, these variables are read from a `.env` file at the project root. Copy `.env.example` to `.env` and fill in your values — the `.env` file is gitignored and should never be committed.
+</Note>
+
+## Deploying via Cloudflare Dashboard
+
+<Steps>
+  <Step title="Connect your GitHub repository">
+    In the [Cloudflare Dashboard](https://dash.cloudflare.com), navigate to **Workers & Pages → Create → Pages → Connect to Git**. Authorize Cloudflare to access your GitHub account and select the `AI-Surfer-` repository.
+  </Step>
+  <Step title="Configure build settings">
+    Set the **Framework preset** to `Vite`, confirm the **Build command** is `npm run build`, and confirm the **Build output directory** is `dist`. Leave the root directory as `/` unless your repository is a monorepo.
+  </Step>
+  <Step title="Add frontend environment variables">
+    Under **Environment variables**, add `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_STRIPE_PUBLISHABLE_KEY`, `VITE_STRIPE_PUBLIC_KEY`, and `VITE_API_URL`. These apply at **build time** — Cloudflare Pages injects them into the Vite build process.
+  </Step>
+  <Step title="Add server-side encrypted variables">
+    Add `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_BROWSER_TOKEN`, and `SITE_HEALTH_API_KEY` as **encrypted** environment variables. These are consumed at **runtime** by the `POST /api/site-health` Pages Function and are never exposed to the browser.
+  </Step>
+  <Step title="Save and deploy">
+    Click **Save and Deploy**. Cloudflare clones your repo, installs dependencies with `npm install`, runs `npm run build`, and publishes the `dist/` folder. The first deploy typically completes in under two minutes.
+  </Step>
+  <Step title="Verify the deployment">
+    Once the build succeeds, your site is live at the default `*.pages.dev` subdomain. Open it in a browser and confirm the Wave Audit and pricing pages load correctly before adding a custom domain.
+  </Step>
+</Steps>
+
+## Custom Domain Setup
+
+After your first successful deploy, attach `otdaisurfer.surf` (or your own domain) to the project.
+
+<Steps>
+  <Step title="Open Custom Domains">
+    In your Pages project, go to **Settings → Custom Domains → Add a custom domain**.
+  </Step>
+  <Step title="Enter your domain">
+    Type `otdaisurfer.surf` and click **Continue**. Cloudflare will show you the required DNS record.
+  </Step>
+  <Step title="Update DNS">
+    If your domain is already on Cloudflare, the `CNAME` record pointing to your `*.pages.dev` URL is added automatically. For external registrars, add the `CNAME` manually in your registrar's DNS settings.
+  </Step>
+  <Step title="Wait for propagation">
+    TLS provisioning and DNS propagation typically complete within a few minutes on Cloudflare-managed domains, and up to 48 hours on external registrars.
+  </Step>
+</Steps>
+
+## Site Health API Endpoint
+
+The `POST /api/site-health` endpoint is a Cloudflare Pages Function that uses **Cloudflare Browser Run Quick Actions** to capture a screenshot, Markdown rendering, and accessibility tree of the live AI Surfer homepage. It is hardcoded to target `https://otdaisurfer.surf/` and protected by a bearer token so public callers cannot spend Browser Run quota.
+
+Three encrypted environment variables are required for this endpoint:
+
+| Variable | Description |
+|---|---|
+| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID, found in the dashboard sidebar |
+| `CLOUDFLARE_BROWSER_TOKEN` | A scoped API token with the **Browser Rendering - Edit** permission |
+| `SITE_HEALTH_API_KEY` | A long random secret shared only with trusted health-check callers |
+
+**Example request:**
+
+```bash Terminal
+curl -X POST https://otdaisurfer.surf/api/site-health \
+  -H "Authorization: Bearer $SITE_HEALTH_API_KEY"
+```
+
+<Warning>
+  The `CLOUDFLARE_BROWSER_TOKEN` is a server-side secret. Set it as an **encrypted** Cloudflare Pages environment variable — never put it in a `VITE_*` variable or commit it to your repository.
+</Warning>
+
+## Continuous Deployment
+
+Every push to the repository's default branch automatically triggers a new Cloudflare Pages build. Pull request previews are also created automatically, each with a unique `*.pages.dev` URL. You can pause automatic deployments or limit deploys to specific branches in **Settings → Builds & deployments**.
+
+<Tip>
+  Add a `NODE_VERSION=18` environment variable in your Pages project settings to pin the Node.js runtime version and avoid build surprises when Cloudflare updates its default.
+</Tip>

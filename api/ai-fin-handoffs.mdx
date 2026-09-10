@@ -1,0 +1,177 @@
+---
+title: "POST /api/ai-fin/handoff — Queue a Human Review Request"
+sidebarTitle: "POST /ai-fin/handoff"
+description: "Queue a human review request in the ai_fin_handoffs table when the AI-fin agent encounters a situation that requires a human team member to take over."
+---
+
+The `/api/ai-fin/handoff` endpoint is the AI-fin agent's escape hatch. When the agent determines it cannot proceed autonomously — due to complex pricing negotiations, enterprise scope, regulatory questions, or an explicit visitor request for a human — it submits a handoff request through this endpoint. The record is stored in the `ai_fin_handoffs` Supabase table with `status: "queued"` and a `priority` matching the submitted `urgency`. A human team member can then pick it up from the dashboard.
+
+## Endpoint
+
+```
+POST /api/ai-fin/handoff
+Content-Type: application/json
+```
+
+## Request Body
+
+<ParamField body="leadId" type="string">
+  UUID of a previously saved lead from `POST /api/ai-fin/leads`. Optional — use to link this handoff to an existing lead record.
+</ParamField>
+
+<ParamField body="contactName" type="string" required>
+  Full name of the prospect requesting human review. Trimmed; min 1 character, max 120 characters.
+</ParamField>
+
+<ParamField body="businessName" type="string" required>
+  Name of the prospect's business. Trimmed; min 1 character, max 160 characters.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Email address for the prospect. Must pass email format validation; max 254 characters.
+</ParamField>
+
+<ParamField body="phone" type="string">
+  Phone number. Optional; max 50 characters.
+</ParamField>
+
+<ParamField body="website" type="string">
+  Business website URL. Optional; max 500 characters.
+</ParamField>
+
+<ParamField body="reason" type="string" required>
+  Why the AI cannot proceed and human review is required. Must be one of the eight approved values:
+
+  | Value | When to use |
+  |---|---|
+  | `"custom_pricing"` | Prospect needs a price not covered by standard packages |
+  | `"complex_scope"` | Project requirements are too complex for the AI to scope |
+  | `"enterprise"` | Prospect is an enterprise account requiring custom terms |
+  | `"regulated_industry"` | Industry has compliance requirements the AI should not advise on |
+  | `"legal_or_contract_question"` | Prospect has legal or contract-related questions |
+  | `"uncertain_scope"` | The AI is unsure how to categorise the prospect's needs |
+  | `"visitor_requested_person"` | Prospect explicitly asked to speak with a human |
+  | `"other"` | Any situation not covered by the above |
+</ParamField>
+
+<ParamField body="recommendedProduct" type="string">
+  The product the AI was considering recommending before the handoff. Optional; max 160 characters. Helps the human reviewer pick up where the agent left off.
+</ParamField>
+
+<ParamField body="conversationSummary" type="string" required>
+  Full summary of the AI-fin conversation up to the point of handoff. Min 1 character, max 8000 characters. This is the primary context for the human reviewer.
+</ParamField>
+
+<ParamField body="urgency" type="string" required>
+  How urgently the prospect needs a response. One of: `"Normal"`, `"High"`, `"Immediate"`. This value is stored as the `priority` of the handoff record.
+</ParamField>
+
+<ParamField body="consentToFollowUp" type="boolean" required>
+  Must be the boolean `true`. Required to proceed — the schema enforces `z.literal(true)`.
+</ParamField>
+
+## Success Response
+
+HTTP `201 Created`
+
+```json
+{
+  "ok": true,
+  "status": "queued",
+  "reviewId": "550e8400-e29b-41d4-a716-446655440000",
+  "priority": "High"
+}
+```
+
+<ResponseField name="ok" type="boolean">
+  Always `true` on success.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Always `"queued"` on success.
+</ResponseField>
+
+<ResponseField name="reviewId" type="string">
+  UUID of the newly created row in `ai_fin_handoffs`.
+</ResponseField>
+
+<ResponseField name="priority" type="string">
+  Mirrors the `urgency` value from the request (`"Normal"`, `"High"`, or `"Immediate"`). Stored as `priority` in Supabase.
+</ResponseField>
+
+## Error Responses
+
+<AccordionGroup>
+  <Accordion title="400 INVALID_HANDOFF_PAYLOAD — Validation failure">
+    Returned when required fields are missing, `email` is malformed, `reason` is not in the approved enum, or `consentToFollowUp` is not `true`.
+
+    ```json
+    {
+      "ok": false,
+      "error": "INVALID_HANDOFF_PAYLOAD",
+      "message": "I need valid contact details and permission before I can request a human review.",
+      "issues": [
+        { "path": "reason", "message": "Invalid enum value. Expected 'custom_pricing' | 'complex_scope' | ..." },
+        { "path": "consentToFollowUp", "message": "Invalid literal value, expected true" }
+      ]
+    }
+    ```
+  </Accordion>
+  <Accordion title="500 SUPABASE_NOT_CONFIGURED — Missing credentials">
+    Returned when Supabase environment variables are absent.
+
+    ```json
+    {
+      "ok": false,
+      "error": "SUPABASE_NOT_CONFIGURED",
+      "message": "Human handoff is not configured on the server yet."
+    }
+    ```
+  </Accordion>
+  <Accordion title="500 HANDOFF_QUEUE_FAILED — Database error">
+    Returned when the Supabase `insert` into `ai_fin_handoffs` fails.
+
+    ```json
+    {
+      "ok": false,
+      "error": "HANDOFF_QUEUE_FAILED",
+      "message": "The human review request did not queue successfully yet."
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Example
+
+The following example shows a complex-scope handoff where the prospect operates in a regulated industry and requires custom contract terms beyond what the AI-fin agent can handle.
+
+```bash
+curl -X POST http://localhost:3001/api/ai-fin/handoff \
+  -H "Content-Type: application/json" \
+  -d '{
+    "leadId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "contactName": "Morgan Breckenridge",
+    "businessName": "Pacific Coast Medical Group",
+    "email": "morgan@pcmedgroup.com",
+    "phone": "+1-555-200-3040",
+    "website": "https://pcmedgroup.com",
+    "reason": "regulated_industry",
+    "recommendedProduct": "Automation Architect",
+    "conversationSummary": "Morgan is the operations director for a multi-location medical group. They want to automate patient follow-up and appointment reminders. HIPAA compliance was raised — the AI flagged this as requiring legal review before any data processing agreement can be established. Budget is confirmed at Tsunami Growth level. Prospect is warm and willing to wait for a human callback.",
+    "urgency": "High",
+    "consentToFollowUp": true
+  }'
+```
+
+```json
+{
+  "ok": true,
+  "status": "queued",
+  "reviewId": "b2c3d4e5-f6a7-8901-bcde-f01234567891",
+  "priority": "High"
+}
+```
+
+<Note>
+When `leadId` is provided, the handoff record is linked to the existing lead in the `leads` table via the `lead_id` foreign key. This allows the human reviewer to see the full lead profile alongside the handoff context.
+</Note>

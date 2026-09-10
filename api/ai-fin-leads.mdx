@@ -1,0 +1,228 @@
+---
+title: "POST /api/ai-fin/leads — Capture and Save AI-Qualified Leads"
+sidebarTitle: "POST /ai-fin/leads"
+description: "Validate and persist a fully-qualified lead from the AI-fin agent to the Supabase leads table, with automatic next-action routing based on lead stage."
+---
+
+The `/api/ai-fin/leads` endpoint is the final step in the AI-fin sales qualification flow. When the AI-fin agent has gathered enough information to qualify a prospect, it submits a structured lead record to this endpoint. The server validates the payload against a strict Zod schema, persists the record to the Supabase `leads` table, and returns a `nextAction` directive that tells the agent what to do next — start onboarding, escalate to a human, or queue a follow-up.
+
+## Endpoint
+
+```
+POST /api/ai-fin/leads
+Content-Type: application/json
+```
+
+## Request Body
+
+<ParamField body="contactName" type="string" required>
+  Full name of the prospect. Trimmed; max 120 characters.
+</ParamField>
+
+<ParamField body="businessName" type="string" required>
+  Name of the prospect's business. Trimmed; max 160 characters.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Valid email address for the prospect. Must pass email format validation; max 254 characters.
+</ParamField>
+
+<ParamField body="phone" type="string">
+  Phone number. Optional; max 50 characters. Pass `null` to omit.
+</ParamField>
+
+<ParamField body="website" type="string">
+  Business website URL. Optional; max 500 characters.
+</ParamField>
+
+<ParamField body="industry" type="string">
+  Industry or vertical. Optional; max 120 characters.
+</ParamField>
+
+<ParamField body="primaryProblem" type="string" required>
+  The main problem or pain point the prospect is trying to solve. Min 1 character, max 2000 characters.
+</ParamField>
+
+<ParamField body="secondaryProblem" type="string">
+  A supporting or secondary problem. Optional; max 2000 characters.
+</ParamField>
+
+<ParamField body="currentProcess" type="string">
+  Description of the prospect's current workflow or process. Optional; max 4000 characters.
+</ParamField>
+
+<ParamField body="desiredOutcome" type="string">
+  What the prospect wants to achieve. Optional; max 2000 characters.
+</ParamField>
+
+<ParamField body="recommendedProduct" type="string" required>
+  The AI-fin agent's product recommendation. Must be one of the seven approved products:
+
+  | Value | Description |
+  |---|---|
+  | `"AEO Wave Audit"` | AI engine optimisation audit service |
+  | `"Wave Scout"` | AI-powered lead qualification chatbot |
+  | `"Sales Rider"` | Automated sales follow-up agent |
+  | `"Content Creator"` | AI content generation service |
+  | `"Customer Care Cove"` | AI customer support agent |
+  | `"Automation Architect"` | Custom automation workflow design |
+  | `"Big Kahuna"` | Full-stack AI marketing agency package |
+</ParamField>
+
+<ParamField body="recommendedPackage" type="string">
+  The pricing package recommended for the prospect. Optional. Must be one of:
+  `"Wave Starter"`, `"Wave Builder"`, `"Tsunami Growth"`, or `"Needs Human Review"`.
+</ParamField>
+
+<ParamField body="leadStage" type="string" required>
+  Qualification stage assigned by the AI-fin agent. Determines the `nextAction` returned:
+
+  | Stage | `nextAction` |
+  |---|---|
+  | `"SURF'S UP"` | `begin_onboarding` |
+  | `"HOT"` | `human_review` |
+  | `"WARM"` | `follow_up` |
+  | `"COLD"` | `follow_up` |
+</ParamField>
+
+<ParamField body="urgency" type="string" required>
+  How urgently the prospect needs a solution. One of: `"Low"`, `"Normal"`, `"High"`, `"Immediate"`.
+</ParamField>
+
+<ParamField body="systemsUsed" type="string[]" required>
+  An array of tools and platforms the prospect currently uses. Max 30 items, each up to 120 characters. Pass `[]` if unknown.
+</ParamField>
+
+<ParamField body="conversationSummary" type="string" required>
+  A full summary of the AI-fin qualification conversation. Min 1 character, max 8000 characters. This is stored verbatim in Supabase.
+</ParamField>
+
+<ParamField body="source" type="string" required>
+  Origin of this lead. Defaults to `"ai-fin"`. Max 120 characters.
+</ParamField>
+
+<ParamField body="consentToFollowUp" type="boolean" required>
+  Must be the boolean `true`. The schema uses `z.literal(true)` — any other value, including `"true"` (string), will fail validation.
+</ParamField>
+
+## nextAction Logic
+
+The server derives `nextAction` automatically from `leadStage`. No additional input is required.
+
+```
+SURF'S UP  →  begin_onboarding
+HOT        →  human_review
+WARM       →  follow_up
+COLD       →  follow_up
+```
+
+<Tip>
+When `nextAction` is `begin_onboarding`, pipe the response `leadId` directly into a call to `POST /api/ai-fin/onboarding` to continue the funnel without interruption.
+</Tip>
+
+## Success Response
+
+HTTP `201 Created`
+
+```json
+{
+  "ok": true,
+  "status": "saved",
+  "leadId": "550e8400-e29b-41d4-a716-446655440000",
+  "nextAction": "begin_onboarding"
+}
+```
+
+<ResponseField name="ok" type="boolean">
+  Always `true` on success.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Always `"saved"` on success.
+</ResponseField>
+
+<ResponseField name="leadId" type="string">
+  UUID of the newly created row in the `leads` Supabase table.
+</ResponseField>
+
+<ResponseField name="nextAction" type="string">
+  One of `begin_onboarding`, `human_review`, or `follow_up`. Derived from `leadStage`.
+</ResponseField>
+
+## Error Responses
+
+<AccordionGroup>
+  <Accordion title="400 INVALID_LEAD_PAYLOAD — Validation failure">
+    Returned when the request body fails Zod schema validation. The `issues` array identifies each failing field.
+
+    ```json
+    {
+      "ok": false,
+      "error": "INVALID_LEAD_PAYLOAD",
+      "message": "I need a few valid lead details before I can save this.",
+      "issues": [
+        { "path": "email", "message": "Invalid email" },
+        { "path": "consentToFollowUp", "message": "Invalid literal value, expected true" }
+      ]
+    }
+    ```
+  </Accordion>
+  <Accordion title="500 SUPABASE_NOT_CONFIGURED — Missing credentials">
+    Returned when `SUPABASE_URL` / `VITE_SUPABASE_URL` or `SUPABASE_ANON_KEY` / `VITE_SUPABASE_ANON_KEY` are not set.
+
+    ```json
+    {
+      "ok": false,
+      "error": "SUPABASE_NOT_CONFIGURED",
+      "message": "Lead capture is not configured on the server yet."
+    }
+    ```
+  </Accordion>
+  <Accordion title="500 LEAD_SAVE_FAILED — Database error">
+    Returned when the Supabase `insert` call fails (e.g. constraint violation, permissions error).
+
+    ```json
+    {
+      "ok": false,
+      "error": "LEAD_SAVE_FAILED",
+      "message": "That lead did not save successfully yet."
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Example
+
+```bash
+curl -X POST http://localhost:3001/api/ai-fin/leads \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contactName": "Jamie Oceana",
+    "businessName": "Tide & Co. Roofing",
+    "email": "jamie@tideandco.com",
+    "phone": "+1-555-010-2020",
+    "website": "https://tideandco.com",
+    "industry": "Home Services",
+    "primaryProblem": "We have no system for following up on web enquiries — leads go cold within 48 hours.",
+    "secondaryProblem": "Our Google profile has 12 unanswered reviews hurting our local ranking.",
+    "currentProcess": "Receptionist manually calls back leads from a spreadsheet. Takes 2–3 days.",
+    "desiredOutcome": "Automated follow-up within minutes and review management on autopilot.",
+    "recommendedProduct": "Sales Rider",
+    "recommendedPackage": "Wave Builder",
+    "leadStage": "SURF'\''S UP",
+    "urgency": "High",
+    "systemsUsed": ["Google Workspace", "ServiceTitan", "Yelp"],
+    "conversationSummary": "Jamie runs a 15-person roofing company. Identified two core pains: slow lead response and unmanaged reviews. Budget confirmed at Wave Builder level. Decision-maker present. Ready to start now.",
+    "source": "ai-fin",
+    "consentToFollowUp": true
+  }'
+```
+
+```json
+{
+  "ok": true,
+  "status": "saved",
+  "leadId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "nextAction": "begin_onboarding"
+}
+```

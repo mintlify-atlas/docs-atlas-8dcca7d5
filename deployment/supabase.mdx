@@ -1,0 +1,354 @@
+---
+title: "Configure Supabase for AI Surfer's Data Layer"
+sidebarTitle: "Supabase"
+description: "Set up AI Surfer's PostgreSQL database, row-level security policies, auth, and Edge Functions using the Supabase project at mkgnyarwiscttobnytin."
+---
+
+Supabase is the primary data layer for AI Surfer, providing a managed PostgreSQL database, row-level security (RLS), Supabase Auth for email-based user accounts, and Deno-based Edge Functions for server-side event processing. Every lead captured by the Sales Agent, every audit queued by the Wave Audit, and every member account is stored in Supabase. The platform uses two Supabase client configurations: a browser client with `persistSession: true` for authenticated frontend users, and a server-side client with `persistSession: false, autoRefreshToken: false` in each Express API handler to avoid leaking session state across requests.
+
+## Role of Supabase in AI Surfer
+
+<CardGroup cols={2}>
+  <Card title="PostgreSQL Database" icon="database">
+    All platform data — leads, audits, handoffs, follow-ups, onboarding records, and user profiles — lives in a single Supabase PostgreSQL project.
+  </Card>
+  <Card title="Row-Level Security" icon="shield">
+    Every table has RLS enabled. Public `INSERT` policies enforce data-integrity constraints at the database level, independent of application logic.
+  </Card>
+  <Card title="Supabase Auth" icon="lock">
+    Email/password authentication for member accounts. The `app_metadata.role === "owner"` claim gates admin-only dashboard views.
+  </Card>
+  <Card title="Edge Functions" icon="bolt">
+    Two Deno Edge Functions — `stripe-webhook` and `new-client` — handle post-payment tier upgrades and new client provisioning without requiring the Express server.
+  </Card>
+</CardGroup>
+
+## Database Tables
+
+AI Surfer's schema is managed through versioned SQL migrations in `supabase/migrations/`. The tables and their key columns are described below.
+
+<Accordion title="leads">
+  The central CRM table. Populated by the `POST /api/ai-fin/leads` Express endpoint via the Sales Agent.
+
+  | Column | Type | Description |
+  |---|---|---|
+  | `id` | `uuid` | Primary key, set by the API before insert |
+  | `name` | `text` | Contact's full name |
+  | `company` | `text` | Business name |
+  | `email` | `text` | Contact email address |
+  | `phone` | `text` | Phone number (optional) |
+  | `website` | `text` | Business website (optional) |
+  | `industry` | `text` | Industry category (optional) |
+  | `primary_problem` | `text` | Main pain point identified by the agent |
+  | `secondary_problem` | `text` | Secondary pain point (optional) |
+  | `current_process` | `text` | Description of the prospect's current workflow |
+  | `desired_outcome` | `text` | What the prospect wants to achieve |
+  | `recommended_product` | `text` | One of: AEO Wave Audit, Wave Scout, Sales Rider, Content Creator, Customer Care Cove, Automation Architect, Big Kahuna |
+  | `recommended_package` | `text` | One of: Wave Starter, Wave Builder, Tsunami Growth, Needs Human Review |
+  | `lead_stage` | `text` | `COLD`, `WARM`, `HOT`, or `SURF'S UP` |
+  | `urgency` | `text` | `Low`, `Normal`, `High`, or `Immediate` |
+  | `systems_used` | `jsonb` | Array of tools/platforms the prospect currently uses |
+  | `conversation_summary` | `text` | Full agent conversation summary |
+  | `consent_to_follow_up` | `boolean` | Must be `true` for the record to be saved |
+  | `source` | `text` | Origin of the lead (e.g. `ai-fin`) |
+  | `next_action` | `text` | `begin_onboarding`, `human_review`, or `follow_up` |
+  | `status` | `text` | Defaults to `new` |
+  | `created_at` | `timestamptz` | Auto-set on insert |
+</Accordion>
+
+<Accordion title="wave_audit_leads">
+  Stores completed Wave Audit submissions from the public audit form.
+
+  | Column | Type | Description |
+  |---|---|---|
+  | `id` | `uuid` | Primary key |
+  | `submission_id` | `uuid` | Unique idempotency key per submission |
+  | `email` | `text` | Submitter's email |
+  | `answers` | `jsonb` | Full audit question/answer payload |
+  | `score` | `integer` | Audit score 0–100 |
+  | `top_category` | `text` | Highest-scoring opportunity category |
+  | `opportunities` | `jsonb` | Array of identified opportunity areas |
+  | `recommended_agent` | `text` | Agent recommended based on score |
+  | `confidence_label` | `text` | Human-readable confidence level |
+  | `source` | `text` | Always `wave-audit` |
+  | `report_version` | `smallint` | Report schema version (1–100) |
+  | `delivery_status` | `text` | `stored`, `pending`, `sent`, or `failed` |
+  | `created_at` | `timestamptz` | Auto-set on insert |
+</Accordion>
+
+<Accordion title="ai_fin_audits">
+  Queued business audits triggered by the AI Fin Sales Agent's audit flow.
+
+  | Column | Type | Description |
+  |---|---|---|
+  | `id` | `uuid` | Primary key |
+  | `business_name` | `text` | Name of the business to audit |
+  | `website` | `text` | Business website URL (optional if `business_identifier` set) |
+  | `business_identifier` | `text` | Alternative identifier if no website (optional) |
+  | `contact_name` | `text` | Contact person's name (optional) |
+  | `email` | `text` | Contact email (optional) |
+  | `source` | `text` | One of: `homepage_chat`, `aeo_page`, `pricing_page`, `product_page`, `other`, `ai-fin` |
+  | `status` | `text` | `queued`, `running`, `complete`, or `failed` |
+  | `score` | `integer` | Audit score 0–100 (set after completion) |
+  | `result_summary` | `jsonb` | Full audit result payload |
+  | `created_at` / `updated_at` | `timestamptz` | Timestamps |
+</Accordion>
+
+<Accordion title="ai_fin_handoffs">
+  Records prospects flagged by the agent for human follow-up due to complexity, custom pricing, or a direct request to speak with a person.
+
+  | Column | Type | Description |
+  |---|---|---|
+  | `id` | `uuid` | Primary key |
+  | `lead_id` | `uuid` | FK to `leads.id` (nullable) |
+  | `contact_name` | `text` | Prospect's name |
+  | `business_name` | `text` | Prospect's business |
+  | `email` | `text` | Contact email |
+  | `phone` | `text` | Phone number (optional) |
+  | `website` | `text` | Business website (optional) |
+  | `reason` | `text` | One of: `custom_pricing`, `complex_scope`, `enterprise`, `regulated_industry`, `legal_or_contract_question`, `uncertain_scope`, `visitor_requested_person`, `other` |
+  | `recommended_product` | `text` | Product the agent was recommending (optional) |
+  | `conversation_summary` | `text` | Full conversation context for the human agent |
+  | `priority` | `text` | `Normal`, `High`, or `Immediate` |
+  | `consent_to_follow_up` | `boolean` | Must be `true` — enforced by DB constraint |
+  | `status` | `text` | `queued`, `assigned`, or `completed` |
+  | `assigned_to` | `text` | Team member assigned to this handoff (optional) |
+</Accordion>
+
+<Accordion title="ai_fin_follow_ups">
+  Queued outbound follow-up messages to be sent after an agent conversation.
+
+  | Column | Type | Description |
+  |---|---|---|
+  | `id` | `uuid` | Primary key |
+  | `lead_id` | `uuid` | FK to `leads.id` (nullable) |
+  | `contact_name` | `text` | Recipient's name |
+  | `email` | `text` | Recipient's email |
+  | `recommended_product` | `text` | Product mentioned in the follow-up |
+  | `recommended_package` | `text` | Package tier (optional) |
+  | `conversation_summary` | `text` | Summary for context in the message |
+  | `message_type` | `text` | `recommendation_summary`, `next_steps`, or `human_review_confirmation` |
+  | `consent_to_follow_up` | `boolean` | Must be `true` |
+  | `status` | `text` | `queued`, `sending`, `sent`, `failed`, or `cancelled` |
+  | `provider_message_id` | `text` | Message ID from the sending provider (optional) |
+  | `last_error` | `text` | Error detail if status is `failed` (optional) |
+  | `created_at` / `sent_at` | `timestamptz` | Creation and delivery timestamps |
+</Accordion>
+
+<Accordion title="ai_fin_onboarding">
+  Tracks prospects who have been routed to the onboarding flow after a successful agent conversation.
+
+  | Column | Type | Description |
+  |---|---|---|
+  | `id` | `uuid` | Primary key |
+  | `lead_id` | `uuid` | FK to the originating lead (nullable) |
+  | `contact_name` | `text` | Prospect's name |
+  | `business_name` | `text` | Business name |
+  | `email` | `text` | Contact email |
+  | `recommended_product` | `text` | Selected AI Surfer product |
+  | `recommended_package` | `text` | One of: `Wave Starter`, `Wave Builder`, `Tsunami Growth` |
+  | `next_step_type` | `text` | `checkout`, `booking`, `intake_form`, or `human_review` |
+  | `status` | `text` | `ready`, `waiting_configuration`, or `routed` |
+  | `checkout_status` | `text` | `not_requested`, `configuration_required`, or `ready` |
+  | `created_at` | `timestamptz` | Auto-set on insert |
+</Accordion>
+
+<Accordion title="users">
+  Public user profile table, auto-populated by the `handle_new_auth_user` trigger on `auth.users`. Also updated by the `stripe-webhook` Edge Function when a checkout completes.
+
+  | Column | Type | Description |
+  |---|---|---|
+  | `auth_id` | `uuid` | Links to `auth.users.id` |
+  | `email` | `text` | Lowercase email — unique key |
+  | `name` | `text` | Display name from auth metadata |
+  | `tier` | `text` | Membership tier: `free`, `bronze`, `wave`, `tsunami`, or `enterprise`. Defaults to `free` |
+  | `status` | `text` | `active` on creation |
+  | `stripe_customer_id` | `text` | Set after a Stripe checkout (optional) |
+  | `updated_at` | `timestamptz` | Auto-updated |
+</Accordion>
+
+## Auth Setup
+
+AI Surfer uses **Supabase Auth** with the email/password provider. Authentication is handled by the browser client in `src/lib/supabase.ts`:
+
+```typescript src/lib/supabase.ts
+import { createClient } from "@supabase/supabase-js";
+
+export const supabase = createClient(
+  supabaseUrl,
+  supabaseAnonKey,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  }
+);
+```
+
+After sign-in, the Members Dashboard and product pages check the user's `app_metadata.role` claim to determine access level:
+
+```typescript
+// Admin/owner check used in MembersDashboard and MemberProduct
+if (user.app_metadata?.role === "owner") {
+  // Show owner-only controls
+}
+```
+
+The `owner` role must be set directly in Supabase Auth's `app_metadata` — it is not derived from the `users.tier` column and cannot be self-assigned by a user.
+
+<Note>
+  A trigger function (`handle_new_auth_user`) automatically provisions a row in `public.users` when a new `auth.users` record is created. New users always receive `tier: 'free'` and `status: 'active'` unless Stripe has already upgraded them.
+</Note>
+
+## Server-Side Client Configuration
+
+Every Express API handler that writes to Supabase creates a short-lived client with sessions disabled:
+
+```typescript src/server/api/aiFinLeads.ts
+function getSupabaseClient() {
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) return null;
+  return createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+```
+
+<Note>
+  `persistSession: false` and `autoRefreshToken: false` prevent the Supabase client from attempting to read or write cookies/localStorage in a Node.js environment. Every API handler instantiates its own client rather than sharing a singleton, which avoids session state leaking between concurrent requests.
+</Note>
+
+## Supabase Edge Functions
+
+Two Edge Functions live in `supabase/functions/` and are deployed to Supabase's Deno runtime independently of the Express server.
+
+<Tabs>
+  <Tab title="stripe-webhook">
+    Handles `checkout.session.completed` events from Stripe. When a customer completes a checkout, the function reads the `tier` value from the session metadata and updates the corresponding row in `public.users`.
+
+    ```typescript supabase/functions/stripe-webhook/index.ts
+    import { serve } from "https://deno.land/std/http/server.ts";
+    import Stripe from "https://esm.sh/stripe?target=deno";
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, {
+      apiVersion: "2023-10-16",
+    });
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    serve(async (req) => {
+      const signature = req.headers.get("stripe-signature")!;
+      const body = await req.text();
+
+      const event = stripe.webhooks.constructEvent(
+        body,
+        signature,
+        Deno.env.get("STRIPE_WEBHOOK_SECRET")!
+      );
+
+      if (event.type === "checkout.session.completed") {
+        const session = event.data.object;
+        const email = session.customer_details?.email;
+        const tier = session.metadata?.tier || "bronze";
+
+        if (email) {
+          await supabase.from("users").update({ tier }).eq("email", email);
+        }
+      }
+
+      return new Response("ok", { status: 200 });
+    });
+    ```
+
+    This function uses the **service-role key** (`SUPABASE_SERVICE_ROLE_KEY`) because it needs to bypass RLS to update the `users` table. The service-role key is only available inside the Edge Function runtime and is never exposed to the browser.
+  </Tab>
+  <Tab title="new-client">
+    Triggered after a successful Stripe payment to provision a new client: create the project record, and send a welcome email. The flow is:
+
+    ```
+    Client Pays
+        ↓
+    Stripe Webhook
+        ↓
+    Supabase Edge Function
+        ↓
+    Create Client
+        ↓
+    Send Welcome Email
+        ↓
+    Create Project
+    ```
+
+    Deploy this function from the Supabase CLI:
+
+    ```bash Terminal
+    supabase functions deploy new-client
+    ```
+  </Tab>
+</Tabs>
+
+## Environment Variables
+
+<CardGroup cols={2}>
+  <Card title="Frontend Variables (VITE_*)" icon="browser">
+    Used by the browser Supabase client. Safe to expose — use the anon/publishable key only.
+  </Card>
+  <Card title="Server Variables" icon="server">
+    Used by Express API handlers. Set these in your server environment, never in `VITE_*` vars.
+  </Card>
+</CardGroup>
+
+| Variable | Context | Description |
+|---|---|---|
+| `VITE_SUPABASE_URL` | Browser | Public Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Browser | Supabase anon/publishable key |
+| `SUPABASE_URL` | Server | Same project URL, used by Express handlers |
+| `SUPABASE_ANON_KEY` | Server | Anon key for Express handlers (RLS enforced) |
+
+<Warning>
+  **Never use the Supabase service-role key in a `VITE_*` variable.** The service-role key bypasses all row-level security policies and has full read/write access to your database. It should only appear in Supabase Edge Function secrets (`SUPABASE_SERVICE_ROLE_KEY`) or in secure server-side environments — never in any variable that gets bundled into browser JavaScript.
+</Warning>
+
+## Running Migrations
+
+Apply the schema migrations to your Supabase project using the Supabase CLI:
+
+<Steps>
+  <Step title="Link your project">
+    ```bash Terminal
+    supabase link --project-ref mkgnyarwiscttobnytin
+    ```
+  </Step>
+  <Step title="Push all migrations">
+    ```bash Terminal
+    supabase db push
+    ```
+
+    This applies all files in `supabase/migrations/` in chronological order, creating the `wave_audit_leads`, `ai_fin_audits`, `ai_fin_handoffs`, `ai_fin_follow_ups`, `ai_fin_onboarding`, and `users` tables along with their RLS policies and indexes.
+  </Step>
+  <Step title="Deploy Edge Functions">
+    ```bash Terminal
+    supabase functions deploy stripe-webhook
+    supabase functions deploy new-client
+    ```
+  </Step>
+  <Step title="Set Edge Function secrets">
+    ```bash Terminal
+    supabase secrets set STRIPE_SECRET_KEY=sk_live_...
+    supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...
+    supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...
+    ```
+  </Step>
+</Steps>
+
+<Info>
+  For the full list of all environment variables — including OpenAI, Stripe, and Cloudflare credentials — see the [Environment Setup](/environment-setup) reference page.
+</Info>

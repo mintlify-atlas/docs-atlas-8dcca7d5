@@ -1,20 +1,60 @@
 ---
-title: "Introduction"
-description: "Welcome to your project"
+title: "AI Surfer: AI Marketing Agency Platform"
+sidebarTitle: "Home"
+description: "AI Surfer is a full-stack AI marketing agency platform combining wave audits, lead pipelines, launch planning agents, and member dashboards to automate business growth."
 ---
 
-Write a short description of your product here. What it does, who it's for, and what they can accomplish with it.
+AI Surfer is a cinematic, neon-surf web platform built for businesses ready to automate their marketing, sales, and operations with AI. It combines a React + Vite frontend with an Express backend, OpenAI-powered agents, Supabase data storage, and Cloudflare edge deployments — all under one roof at [otdaisurfer.surf](https://otdaisurfer.surf).
 
-<Tip>
-  Ready to make this your own? Start by editing this page. Update your `docs.json` file to customize your site. Then fill out the [Quickstart](/quickstart) page.
-</Tip>
+<CardGroup cols={2}>
+  <Card title="Introduction" icon="wave-sine" href="/introduction">
+    Learn what AI Surfer is, who it's for, and how the platform fits together.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Clone the repo, configure your environment, and run the dev server in minutes.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore every Express endpoint — leads, audits, handoffs, onboarding, and launch planning.
+  </Card>
+  <Card title="AI Agents" icon="robot" href="/agents/overview">
+    Understand the Sales, Support, and Review Booster agents and how to configure them.
+  </Card>
+</CardGroup>
 
-<Card title="Quickstart" icon="rocket" href="/quickstart">
-  This card links to the quickstart page in your project.
-</Card>
-<Card title="Components" icon="puzzle-piece" href="https://mintlify.com/docs/components">
-  Add cards, callouts, steps, tabs, and more to design and structure your pages.
-</Card>
-<Card title="Settings" icon="gear" href="https://mintlify.com/docs/organize/settings">
-  Set your site name, branding, and navigation in the `docs.json` file.
-</Card>
+## Platform Highlights
+
+<CardGroup cols={2}>
+  <Card title="AI Wave Audit" icon="magnifying-glass-chart" href="/features/wave-audit">
+    A scored 5-question questionnaire that surfaces AI opportunities across sales, operations, content, and support.
+  </Card>
+  <Card title="Launch Desk" icon="flag-checkered" href="/features/launch-desk">
+    An OpenAI-powered agent that converts product briefs into structured release plans with readiness scoring.
+  </Card>
+  <Card title="Members Dashboard" icon="gauge" href="/features/members-dashboard">
+    A subscription-gated portal giving members access to Wave Scout, Sales Rider, Content Creator, and more.
+  </Card>
+  <Card title="Deployment Guide" icon="cloud" href="/deployment/cloudflare-pages">
+    Deploy to Cloudflare Pages and Workers with Supabase as the backend data layer.
+  </Card>
+</CardGroup>
+
+## Get Up and Running
+
+<Steps>
+  <Step title="Clone & install">
+    Clone the repository and install dependencies with `npm install`.
+  </Step>
+  <Step title="Configure environment">
+    Copy `.env.example` to `.env` and fill in your Supabase, Stripe, and OpenAI credentials. See [Environment Setup](/environment-setup).
+  </Step>
+  <Step title="Start the dev server">
+    Run `npm run dev` for the Vite frontend and `npm run server:dev` for the Express AI backend.
+  </Step>
+  <Step title="Explore the platform">
+    Visit `http://localhost:5173` to see the frontend, and `http://localhost:3001/health` to verify the backend is running.
+  </Step>
+</Steps>
+
+<Note>
+  AI Surfer requires Node.js ≥ 18 and npm ≥ 9. Make sure both are installed before running any commands.
+</Note>

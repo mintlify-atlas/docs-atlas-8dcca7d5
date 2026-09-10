@@ -1,0 +1,112 @@
+{
+  "projectType": "saas",
+  "projectName": "AI Surfer",
+  "projectDescription": "AI Surfer is a full-stack AI marketing agency platform that combines AI-powered sales agents, wave audits, lead capture, launch planning, and member dashboards to help businesses automate growth and marketing operations.",
+  "theme": "luma",
+  "primaryColor": "#18eef1",
+  "lightColor": "#060c18",
+  "darkColor": "#38c0c8",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "environment-setup"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/wave-audit",
+              "features/wave-check",
+              "features/launch-desk",
+              "features/members-dashboard"
+            ]
+          },
+          {
+            "group": "AI Agents",
+            "pages": [
+              "agents/overview",
+              "agents/sales-agent",
+              "agents/customer-support-agent",
+              "agents/review-booster-agent"
+            ]
+          },
+          {
+            "group": "Pricing & Plans",
+            "pages": [
+              "pricing/overview",
+              "pricing/memberships",
+              "pricing/done-for-you"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/cloudflare-pages",
+              "deployment/cloudflare-workers",
+              "deployment/supabase"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Server API",
+            "pages": [
+              "api/overview",
+              "api/launch",
+              "api/ai-fin-leads",
+              "api/ai-fin-audits",
+              "api/ai-fin-handoffs",
+              "api/ai-fin-follow-ups",
+              "api/ai-fin-onboarding"
+            ]
+          },
+          {
+            "group": "Launch Desk Agent",
+            "pages": [
+              "api/launch-desk-agent",
+              "api/launch-tools"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "AI Wave Audit — scored 5-question questionnaire that identifies AI automation opportunities across sales, operations, content, and support",
+    "Wave Check — free 3-question AI readiness quiz with email-captured action plan",
+    "Launch Desk — OpenAI-powered agent (gpt-5.6-terra) that turns launch briefs into structured release plans with readiness scoring",
+    "AI Fin Lead Pipeline — Express API endpoints for capturing, auditing, handing off, following up, and onboarding leads via Supabase",
+    "Members Dashboard — subscription-gated portal with AI product suite (Wave Scout, Sales Rider, Content Creator, Customer Care Cove, Automation Architect, Big Kahuna)",
+    "AI Agent Skills — Sales Agent, Customer Support Agent, and Review Booster Agent SKILL definitions for pluggable AI workflows",
+    "Stripe integration — subscriptions, one-time purchases, and Stripe-hosted checkout for membership tiers and done-for-you services",
+    "Cloudflare Workers + Browser Rendering — edge-deployed worker with remote browser for site health checks",
+    "Supabase backend — auth, RLS-protected tables (leads, ai_fin_audits, ai_fin_handoffs, ai_fin_follow_ups, ai_fin_onboarding, users, agents)"
+  ],
+  "publicApiSurface": [
+    "GET /health",
+    "POST /api/launch",
+    "POST /api/ai-fin/leads",
+    "POST /api/ai-fin/audit/start",
+    "POST /api/ai-fin/handoff",
+    "POST /api/ai-fin/follow-up",
+    "POST /api/ai-fin/onboarding",
+    "GET /api/dashboard",
+    "POST /api/site-health",
+    "extractLaunchTasks({ productBrief, constraints })",
+    "checkLaunchReadiness({ launchDate, productBrief, constraints, assets, tasks })",
+    "generateOwnerChecklistTool({ launchDate, tasks })",
+    "draftChannelCopyTool({ productBrief, audience, channels, assets })",
+    "PRICING constants (free, bronze, wave, tsunami, enterprise)",
+    "SERVICES constants (brand, automation, cinematic, agents)"
+  ]
+}

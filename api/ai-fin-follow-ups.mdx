@@ -1,0 +1,198 @@
+---
+title: "POST /api/ai-fin/follow-up — Queue a Lead Follow-Up Message"
+sidebarTitle: "POST /ai-fin/follow-up"
+description: "Queue a typed follow-up message for a lead in the ai_fin_follow_ups Supabase table after an AI-fin recommendation, next-steps summary, or human review confirmation."
+---
+
+The `/api/ai-fin/follow-up` endpoint queues a follow-up communication for a prospect after an AI-fin conversation. Three distinct message types cover the main post-conversation scenarios: sending a product recommendation summary, outlining next steps, or confirming that a human review has been queued. The record lands in the `ai_fin_follow_ups` Supabase table with `status: "queued"`, ready for your email or CRM automation to pick up.
+
+## Endpoint
+
+```
+POST /api/ai-fin/follow-up
+Content-Type: application/json
+```
+
+## Request Body
+
+<ParamField body="leadId" type="string">
+  UUID of a previously saved lead. Optional — links this follow-up to an existing record in the `leads` table.
+</ParamField>
+
+<ParamField body="contactName" type="string" required>
+  Full name of the prospect. Trimmed; min 1 character, max 120 characters.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Email address the follow-up will be sent to. Must pass email format validation; max 254 characters.
+</ParamField>
+
+<ParamField body="recommendedProduct" type="string" required>
+  The product the AI-fin agent recommended during the conversation. Min 1 character, max 160 characters. Used to personalise the follow-up message content.
+</ParamField>
+
+<ParamField body="recommendedPackage" type="string">
+  The pricing package recommended for the prospect. Optional; max 160 characters. Included in the follow-up message when provided.
+</ParamField>
+
+<ParamField body="conversationSummary" type="string" required>
+  Summary of the qualifying conversation. Min 1 character, max 8000 characters. Provides context for the follow-up message author or automation.
+</ParamField>
+
+<ParamField body="messageType" type="string" required>
+  The type of follow-up to send. Must be one of three values — see the table below.
+</ParamField>
+
+<ParamField body="consentToFollowUp" type="boolean" required>
+  Must be the boolean `true`. Required — enforced by `z.literal(true)`. Do not submit the string `"true"`.
+</ParamField>
+
+## Message Types
+
+The `messageType` field controls which follow-up template or automation is triggered downstream.
+
+<CardGroup cols={1}>
+  <Card title="recommendation_summary" icon="star">
+    **Use when:** The AI-fin agent completed a full qualification and has a concrete product and package recommendation to share.
+
+    Sends the prospect a recap of what was discussed and the specific product and package recommended for their business. Ideal for WARM or HOT leads who are not yet ready to check out.
+  </Card>
+  <Card title="next_steps" icon="list-check">
+    **Use when:** The lead is qualified and knows what they want, but there are clear action items before onboarding can begin — e.g. gathering assets, scheduling a call, or reviewing a proposal.
+
+    Sends a structured list of next steps so the prospect knows exactly what happens next and what is expected of them.
+  </Card>
+  <Card title="human_review_confirmation" icon="user-check">
+    **Use when:** The AI-fin agent has just submitted a handoff request via `POST /api/ai-fin/handoff` and the prospect needs to know a human will contact them.
+
+    Sends an acknowledgement that their request has been received and a team member will be in touch. Include the `urgency` level as part of the conversation summary so the automation can set the right expectation for response time.
+  </Card>
+</CardGroup>
+
+## Success Response
+
+HTTP `201 Created`
+
+```json
+{
+  "ok": true,
+  "status": "queued",
+  "messageId": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+<ResponseField name="ok" type="boolean">
+  Always `true` on success.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Always `"queued"` on success.
+</ResponseField>
+
+<ResponseField name="messageId" type="string">
+  UUID of the newly created row in `ai_fin_follow_ups`.
+</ResponseField>
+
+## Error Responses
+
+<AccordionGroup>
+  <Accordion title="400 INVALID_FOLLOW_UP_PAYLOAD — Validation failure">
+    Returned when any required field is missing, `email` is malformed, `messageType` is not a valid enum value, or `consentToFollowUp` is not `true`.
+
+    ```json
+    {
+      "ok": false,
+      "error": "INVALID_FOLLOW_UP_PAYLOAD",
+      "message": "I need valid follow-up details and permission before I can queue this.",
+      "issues": [
+        { "path": "messageType", "message": "Invalid enum value. Expected 'recommendation_summary' | 'next_steps' | 'human_review_confirmation'" }
+      ]
+    }
+    ```
+  </Accordion>
+  <Accordion title="500 SUPABASE_NOT_CONFIGURED — Missing credentials">
+    Returned when `SUPABASE_URL` / `VITE_SUPABASE_URL` or `SUPABASE_ANON_KEY` / `VITE_SUPABASE_ANON_KEY` are not set.
+
+    ```json
+    {
+      "ok": false,
+      "error": "SUPABASE_NOT_CONFIGURED",
+      "message": "Follow-up messaging is not configured on the server yet."
+    }
+    ```
+  </Accordion>
+  <Accordion title="500 FOLLOW_UP_QUEUE_FAILED — Database error">
+    Returned when the Supabase `insert` into `ai_fin_follow_ups` fails.
+
+    ```json
+    {
+      "ok": false,
+      "error": "FOLLOW_UP_QUEUE_FAILED",
+      "message": "That follow-up did not queue successfully yet."
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Examples
+
+<Tabs>
+  <Tab title="recommendation_summary">
+    ```bash
+    curl -X POST http://localhost:3001/api/ai-fin/follow-up \
+      -H "Content-Type: application/json" \
+      -d '{
+        "leadId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "contactName": "Jamie Oceana",
+        "email": "jamie@tideandco.com",
+        "recommendedProduct": "Sales Rider",
+        "recommendedPackage": "Wave Builder",
+        "conversationSummary": "Jamie runs a roofing company with slow lead response. Recommended Sales Rider on Wave Builder for automated follow-up and review management. Lead stage: WARM — not ready to buy today but interested.",
+        "messageType": "recommendation_summary",
+        "consentToFollowUp": true
+      }'
+    ```
+  </Tab>
+  <Tab title="next_steps">
+    ```bash
+    curl -X POST http://localhost:3001/api/ai-fin/follow-up \
+      -H "Content-Type: application/json" \
+      -d '{
+        "contactName": "Taylor Wren",
+        "email": "taylor@wrendesignco.com",
+        "recommendedProduct": "Content Creator",
+        "recommendedPackage": "Wave Starter",
+        "conversationSummary": "Taylor needs a content creation pipeline. Agreed on Wave Starter. Next steps: share brand guidelines, provide 3 sample blog topics, and confirm CMS access.",
+        "messageType": "next_steps",
+        "consentToFollowUp": true
+      }'
+    ```
+  </Tab>
+  <Tab title="human_review_confirmation">
+    ```bash
+    curl -X POST http://localhost:3001/api/ai-fin/follow-up \
+      -H "Content-Type: application/json" \
+      -d '{
+        "leadId": "b2c3d4e5-f6a7-8901-bcde-f01234567891",
+        "contactName": "Morgan Breckenridge",
+        "email": "morgan@pcmedgroup.com",
+        "recommendedProduct": "Automation Architect",
+        "conversationSummary": "HIPAA-regulated prospect. Handoff queued with High urgency. Team will contact within 4 business hours.",
+        "messageType": "human_review_confirmation",
+        "consentToFollowUp": true
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+```json
+{
+  "ok": true,
+  "status": "queued",
+  "messageId": "c3d4e5f6-a7b8-9012-cdef-012345678901"
+}
+```
+
+<Tip>
+For `human_review_confirmation` follow-ups, call this endpoint immediately after a successful `POST /api/ai-fin/handoff` response. Pass the `reviewId` as part of the `conversationSummary` so downstream automations can cross-reference the two records.
+</Tip>

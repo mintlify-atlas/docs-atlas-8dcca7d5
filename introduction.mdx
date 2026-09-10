@@ -1,0 +1,79 @@
+---
+title: "AI Surfer: AI-Powered Marketing Agency Platform"
+sidebarTitle: "Introduction"
+description: "AI Surfer is a full-stack SaaS platform pairing a cinematic React UI with OpenAI agents, Supabase, and Stripe to automate marketing growth for businesses."
+---
+
+AI Surfer is a full-stack AI marketing agency platform built for small-to-mid businesses, marketing agencies, and founders who want to stop doing marketing manually and start scaling intelligently. It pairs a cinematic, neon-surf React frontend with a battle-tested Express 5 backend powered by the OpenAI Agents SDK — giving you a complete system for lead generation, site auditing, AI-assisted launch planning, member management, and Stripe-based billing, all deployed to Cloudflare's global edge network.
+
+## What AI Surfer Does
+
+At its core, AI Surfer is a multi-surface platform where every user-facing feature is backed by a real AI pipeline. When a prospect answers the Wave Audit questionnaire, their answers flow through a scoring engine that produces actionable recommendations. When a member opens the Launch Desk, a streaming OpenAI agent reads their product brief and generates a prioritized release plan in real time. When leads arrive through the AI Fin pipeline, a sequence of Express handlers routes them through qualification, auditing, handoff, follow-up, and onboarding — all without manual intervention.
+
+## Platform Components
+
+<CardGroup cols={2}>
+  <Card title="Wave Audit" icon="wave-square" href="/features/wave-audit">
+    A scored, multi-step questionnaire that assesses AI readiness across business type, team size, time drains, and lost opportunities — then produces a tailored report.
+  </Card>
+  <Card title="Launch Desk Agent" icon="rocket" href="/features/launch-desk">
+    A streaming OpenAI agent that accepts a product brief, runs preflight readiness checks, extracts the critical-path task list, and emits a full release plan over SSE.
+  </Card>
+  <Card title="Server API Reference" icon="code" href="/api/overview">
+    Six Express 5 endpoints covering launch orchestration, lead capture, audits, handoffs, follow-ups, and onboarding — all documented with request and response schemas.
+  </Card>
+  <Card title="Quickstart" icon="bolt" href="/quickstart">
+    Clone the repo, install dependencies, configure your `.env`, and have both the Vite frontend and Express backend running locally in under five minutes.
+  </Card>
+</CardGroup>
+
+## Who AI Surfer Is For
+
+<CardGroup cols={2}>
+  <Card title="Small & Mid-Size Businesses" icon="store">
+    Replace scattered marketing tools with a single platform that audits your current AI readiness, captures leads, and automates follow-up sequences.
+  </Card>
+  <Card title="Marketing Agencies" icon="bullhorn">
+    Offer AI-powered audits and launch planning as a productized service using the Wave Audit, AI Fin lead pipeline, and tiered membership system.
+  </Card>
+  <Card title="Founders Automating Growth" icon="seedling">
+    Use the Launch Desk agent to produce a release plan for every new product or campaign, backed by structured readiness scoring and live SSE streaming.
+  </Card>
+  <Card title="Developers & Technical Teams" icon="terminal">
+    Fork and extend a well-structured TypeScript monorepo with a clean separation between the Vite SPA, the Express API layer, and the Cloudflare Workers edge functions.
+  </Card>
+</CardGroup>
+
+## Core Feature Set
+
+- **Wave Audit** — 5-question scored questionnaire (`/wave-audit`) that assesses business type, team size, weekly time drains, lost opportunity areas, and AI priorities, producing a full wave report.
+- **Wave Check** — Live site-health endpoint (`POST /api/site-health`) powered by Cloudflare Browser Rendering that captures a screenshot, Markdown, and accessibility tree of the production homepage.
+- **Launch Desk** — Authenticated route (`/launch-desk`) backed by the `POST /api/launch` SSE endpoint; the `launchDeskAgent` extracts tasks, scores readiness, then streams a release plan.
+- **AI Fin Lead Pipeline** — Five-stage server pipeline: `POST /api/ai-fin/leads` → `/audit/start` → `/handoff` → `/follow-up` → `/onboarding`.
+- **Members Dashboard** — Protected `/members` route with Supabase-backed tier lookup (Scout, Navigator, Architect, Strategist, Oracle) and six product areas including Wave Scout, Sales Rider, Content Creator, Customer Care Cove, Automation Architect, and Big Kahuna.
+- **AI Agent Skills** — Tier-gated agents mapped in `src/ai/agents.ts`: `free → Scout`, `bronze → Navigator`, `wave → Architect`, `tsunami → Strategist`, `enterprise → Oracle`.
+- **Stripe Billing** — Publishable and secret key separation, webhook handling, and three named price IDs: `STRIPE_PRICE_WAVE_STARTER`, `STRIPE_PRICE_WAVE_BUILDER`, `STRIPE_PRICE_TSUNAMI_GROWTH`.
+- **Cloudflare Pages/Workers** — Frontend deploys as a static SPA to Cloudflare Pages with a `_worker.js` SPA fallback; the `wrangler` CLI scripts handle worker dev, deploy, and browser rendering setup.
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| **Frontend framework** | React 19 + Vite 8 |
+| **Language** | TypeScript 5 (strict mode, `ES2020` target) |
+| **Styling** | Tailwind CSS 3 + Framer Motion 11 |
+| **Icons** | Lucide React |
+| **Client routing** | React Router DOM 7 |
+| **Backend framework** | Express 5 |
+| **AI runtime** | OpenAI Agents SDK (`@openai/agents`) |
+| **AI models** | `gpt-5.6-terra` (default), Google GenAI also available |
+| **Database & auth** | Supabase (`@supabase/supabase-js` 2) |
+| **Payments** | Stripe (checkout sessions, webhooks, portal) |
+| **Schema validation** | Zod 4 |
+| **Deployment** | Cloudflare Pages (frontend) + Cloudflare Workers (edge API) |
+| **Local dev runtime** | `tsx watch` for live-reload Express |
+| **Test runner** | Vitest |
+
+<Note>
+  AI Surfer is a live production platform at [otdaisurfer.surf](https://otdaisurfer.surf). The codebase uses a single TypeScript monorepo — the Vite SPA and the Express server share the same `src/` tree with path alias `@/*` mapping to `src/*`.
+</Note>

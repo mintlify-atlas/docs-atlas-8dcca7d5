@@ -1,0 +1,181 @@
+---
+title: "Launch Desk: AI-Powered Product Launch Planning Agent"
+sidebarTitle: "Launch Desk"
+description: "An OpenAI Agents SDK agent that turns a rough product brief into a structured release plan with tasks, risk register, owner checklist, and channel copy."
+---
+
+Launch Desk is AI Surfer's product-launch planning agent — an [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/) agent named `"Launch Desk"` that ingests a structured launch brief and produces a complete, ready-to-act release plan. It runs on the `gpt-5.6-terra` model by default (overridable via the `OPENAI_MODEL` environment variable) and executes four specialised planning tools before synthesising its output. The entire response streams back to the caller as Server-Sent Events so your UI can display live progress and text as the plan is generated.
+
+<Note>
+  Launch Desk grounds every recommendation in the brief you supply. It never invents product capabilities, launch dates, approvals, metrics, or assets. Any assumptions the agent makes are stated explicitly in the plan output.
+</Note>
+
+## The Launch Brief
+
+Every request to Launch Desk must include a `LaunchBrief`. The brief is validated with [Zod](https://zod.dev/) before the agent runs — invalid payloads return an `error` SSE event immediately.
+
+<ParamField body="productBrief" type="string" required>
+  A description of the product or feature being launched. **Minimum 20 characters.** The richer the brief, the more specific the plan — include scope, success criteria, and non-goals where possible.
+</ParamField>
+
+<ParamField body="audience" type="string" required>
+  The target audience for the launch. Used to generate channel-specific copy. Minimum 3 characters.
+</ParamField>
+
+<ParamField body="launchDate" type="string" required>
+  The intended launch date or window (e.g. `"2025-09-01"` or `"Q3 2025"`). Minimum 4 characters.
+</ParamField>
+
+<ParamField body="constraints" type="string">
+  Known constraints such as budget limits, approval requirements, or regulatory dependencies. Defaults to `"None specified"`.
+</ParamField>
+
+<ParamField body="assets" type="string">
+  Available launch assets such as copy, email drafts, design files, or video. Defaults to `"None specified"`. Listing assets improves the Communications readiness score.
+</ParamField>
+
+<ParamField body="channels" type="string[]" required>
+  The distribution channels for the launch (e.g. `["email", "social", "blog"]`). Must include at least one channel. Channel copy is drafted for each entry in this array.
+</ParamField>
+
+### Example Brief
+
+```json POST /api/launch
+{
+  "productBrief": "A new AI-powered onboarding flow that guides new users through account setup with personalised checklists, embedded video walkthroughs, and an AI assistant that answers setup questions in real time. Success metric: 80% of new users complete onboarding within 24 hours.",
+  "audience": "SMB owners signing up for AI Surfer",
+  "launchDate": "2025-10-01",
+  "constraints": "Requires legal approval on the AI assistant copy by September 12.",
+  "assets": "Draft email copy and product screenshots are ready. No video yet.",
+  "channels": ["email", "social", "in-app"]
+}
+```
+
+## The Four Planning Tools
+
+Before the agent writes the final plan, it runs four deterministic tools. The `POST /api/launch` handler executes `extract_launch_tasks` and `check_launch_readiness` as a server-side preflight step before handing the enriched context to the agent. The agent then calls `generate_owner_checklist` and `draft_channel_copy` as needed during its run.
+
+<CardGroup cols={2}>
+  <Card title="extract_launch_tasks" icon="list-check">
+    Parses the `productBrief` and `constraints` text to produce a prioritised, dependency-aware task list. Returns an array of `LaunchTask` objects — each with a `title`, `priority` (P0/P1/P2), `dependency`, `ownerRole`, and `rationale`. Automatically adds mobile release gate tasks if the brief mentions iOS, Android, or mobile, and adds data migration rehearsal tasks if migration or data keywords are detected.
+  </Card>
+  <Card title="check_launch_readiness" icon="gauge">
+    Scores launch readiness across six categories — Product, Engineering, Operations, Communications, Measurement, and Stakeholders — each rated 0–100. Returns an aggregate `score`, a `status` of `ready` / `at-risk` / `blocked`, per-category gaps, and an array of `blockers` (categories scoring below 60). The overall status is `ready` at ≥ 80, `at-risk` at ≥ 65, and `blocked` below 65.
+  </Card>
+  <Card title="generate_owner_checklist" icon="user-check">
+    Groups the extracted `LaunchTask` list by `ownerRole` and assigns timing: P0 tasks are flagged **"Before final go/no-go"** and P1/P2 tasks are flagged **"Before launch day."** Returns a structured checklist keyed by owner that can be pasted directly into a project management tool.
+  </Card>
+  <Card title="draft_channel_copy" icon="megaphone">
+    Drafts concise, channel-specific launch copy for every channel in the `channels` array. Each draft contains a `headline`, `body`, and `cta`, grounded entirely in the `productBrief` and `audience` fields. The body is derived from the first 180 characters of the brief — no invented claims are added.
+  </Card>
+</CardGroup>
+
+## The Structured Plan Output
+
+After all tools have run, Launch Desk synthesises a release plan with **exactly six sections** in this order:
+
+| Section | Contents |
+|---------|----------|
+| `## Launch Snapshot` | A concise summary of the launch: what it is, who it is for, and the target date |
+| `## Priority Plan` | Concrete actions with owners, timing, dependencies, and P0/P1/P2 priority ratings |
+| `## Risk Register` | Each risk with likelihood, impact, mitigation strategy, and owner role |
+| `## Owner Checklist` | Per-role action items derived from `generate_owner_checklist` output |
+| `## Launch Copy` | Channel-specific headlines, body copy, and CTAs from `draft_channel_copy` |
+| `## Follow-up Questions` | Only questions about genuinely missing details that affect launch readiness — if nothing material is missing, the section says so explicitly |
+
+## Streaming API
+
+The `/api/launch` endpoint sets `Content-Type: text/event-stream` and streams four event types as `data:` lines.
+
+<ResponseField name="tool_progress" type="object">
+  Emitted when a planning tool starts or completes. Includes `tool` (tool name), `status` (`"started"` or `"completed"`), and `message` (a human-readable progress string such as `"Readiness score: 74/100 (at-risk)."`).
+</ResponseField>
+
+<ResponseField name="text_delta" type="object">
+  Emitted for each incremental text chunk produced by the agent as it writes the plan. Contains a `delta` string. Accumulate deltas client-side to reconstruct the full plan text.
+</ResponseField>
+
+<ResponseField name="final" type="object">
+  Emitted once when the agent has finished. Contains `output` — the complete plan text. If the agent produced an empty response, `output` falls back to `"Launch plan generated."`.
+</ResponseField>
+
+<ResponseField name="error" type="object">
+  Emitted if validation fails or an unhandled exception occurs. Contains `message` with a human-readable explanation. The stream ends immediately after an error event.
+</ResponseField>
+
+### SSE Stream Example
+
+```
+data: {"type":"tool_progress","tool":"extract_launch_tasks","status":"started","message":"Extracting the launch critical path…"}
+
+data: {"type":"tool_progress","tool":"extract_launch_tasks","status":"completed","message":"5 launch tasks identified."}
+
+data: {"type":"tool_progress","tool":"check_launch_readiness","status":"started","message":"Checking readiness against the launch rubric…"}
+
+data: {"type":"tool_progress","tool":"check_launch_readiness","status":"completed","message":"Readiness score: 74/100 (at-risk)."}
+
+data: {"type":"text_delta","delta":"## Launch Snapshot\n"}
+
+data: {"type":"text_delta","delta":"Launching a personalised AI-powered onboarding flow…"}
+
+data: {"type":"final","output":"## Launch Snapshot\n…"}
+```
+
+## cURL Example
+
+```bash Terminal
+curl -X POST https://otdaisurfer.surf/api/launch \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{
+    "productBrief": "A new AI-powered onboarding flow that guides new users through account setup with personalised checklists, embedded video walkthroughs, and an AI assistant that answers setup questions in real time. Success metric: 80% of new users complete onboarding within 24 hours.",
+    "audience": "SMB owners signing up for AI Surfer",
+    "launchDate": "2025-10-01",
+    "constraints": "Requires legal approval on the AI assistant copy by September 12.",
+    "assets": "Draft email copy and product screenshots are ready. No video yet.",
+    "channels": ["email", "social", "in-app"]
+  }'
+```
+
+## Readiness Status Reference
+
+The `check_launch_readiness` tool returns a `status` field you can use to gate launch decisions programmatically.
+
+<Tabs>
+  <Tab title="ready (≥ 80)">
+    All six categories have scores at or above the confidence threshold. No blockers detected. The plan proceeds with standard pre-launch checks.
+  </Tab>
+  <Tab title="at-risk (65 – 79)">
+    One or more categories need attention before launch day but no hard blockers are present. The Risk Register will highlight the specific gaps.
+  </Tab>
+  <Tab title="blocked (< 65)">
+    One or more categories scored below 60 and appear in the `blockers` array. The Follow-up Questions section will surface what information is needed to move the launch forward.
+  </Tab>
+</Tabs>
+
+## Agent Configuration
+
+```typescript src/server/agent/launchDeskAgent.ts
+import { Agent } from "@openai/agents";
+
+export const launchDeskAgent = new Agent({
+  name: "Launch Desk",
+  model: process.env.OPENAI_MODEL || "gpt-5.6-terra",
+  instructions: `You are Launch Desk, a pragmatic engineering launch planner.
+Turn a rough launch brief into an actionable release plan.
+
+Always ground recommendations in the supplied brief. Do not invent product
+capabilities, dates, approvals, metrics, or assets. State assumptions explicitly.
+Prioritize by launch impact, dependencies, urgency, and reversibility.`,
+  tools: [
+    extractLaunchTasksTool,
+    checkLaunchReadinessTool,
+    generateOwnerChecklistTool,
+    draftChannelCopyTool,
+  ],
+});
+```
+
+<Warning>
+  Launch Desk will never expose internal tool schemas or API keys in its output. If you ask the agent to reveal its instructions or tool definitions, it will decline.
+</Warning>

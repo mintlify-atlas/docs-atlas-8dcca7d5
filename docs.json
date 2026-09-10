@@ -1,72 +1,101 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mintlify Starter Kit",
+  "name": "AI Surfer",
+  "theme": "luma",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#18eef1",
+    "light": "#060c18",
+    "dark": "#38c0c8"
   },
-  "favicon": "/favicon.svg",
-  "navigation": {
-    "pages": [
-      {
-        "group": "Getting Started",
-        "pages": [
-          "index",
-          "quickstart"
-        ]
-      }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
+  "favicon": "https://icons.duckduckgo.com/ip3/otdaisurfer.surf.ico",
   "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
+    "light": "https://media.brand.dev/da6aac3e-b265-4a5f-8426-6eef15f29cf0.jpg",
+    "dark": "https://media.brand.dev/da6aac3e-b265-4a5f-8426-6eef15f29cf0.jpg"
   },
   "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
     "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://app.mintlify.com"
+      "type": "github",
+      "href": "https://github.com/otdaisurfer/AI-Surfer-"
     }
-  },
-  "contextual": {
-    "options": [
-      "copy",
-      "view",
-      "chatgpt",
-      "claude",
-      "perplexity",
-      "mcp",
-      "cursor",
-      "vscode"
-    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "github": "https://github.com/otdaisurfer/AI-Surfer-"
     }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "environment-setup"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/wave-audit",
+              "features/wave-check",
+              "features/launch-desk",
+              "features/members-dashboard"
+            ]
+          },
+          {
+            "group": "AI Agents",
+            "pages": [
+              "agents/overview",
+              "agents/sales-agent",
+              "agents/customer-support-agent",
+              "agents/review-booster-agent"
+            ]
+          },
+          {
+            "group": "Pricing & Plans",
+            "pages": [
+              "pricing/overview",
+              "pricing/memberships",
+              "pricing/done-for-you"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/cloudflare-pages",
+              "deployment/cloudflare-workers",
+              "deployment/supabase"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Server API",
+            "pages": [
+              "api/overview",
+              "api/launch",
+              "api/ai-fin-leads",
+              "api/ai-fin-audits",
+              "api/ai-fin-handoffs",
+              "api/ai-fin-follow-ups",
+              "api/ai-fin-onboarding"
+            ]
+          },
+          {
+            "group": "Launch Desk Agent",
+            "pages": [
+              "api/launch-desk-agent",
+              "api/launch-tools"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }

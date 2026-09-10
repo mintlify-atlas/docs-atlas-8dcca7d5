@@ -1,0 +1,300 @@
+---
+title: "POST /api/ai-fin/onboarding — Start the Client Onboarding Flow"
+sidebarTitle: "POST /ai-fin/onboarding"
+description: "Create a client onboarding record, determine Stripe checkout readiness, and receive full checkout configuration status including required environment variables."
+---
+
+The `/api/ai-fin/onboarding` endpoint is the entry point for converting a qualified lead into an active client. It creates a record in the `ai_fin_onboarding` Supabase table, determines the correct next step type (checkout, booking, intake form, or human review), and — when `nextStepType` is `"checkout"` — inspects the server's Stripe configuration to report whether a payment link can be generated immediately. This lets your frontend surface a helpful setup prompt when pricing environment variables are missing, rather than silently failing.
+
+## Endpoint
+
+```
+POST /api/ai-fin/onboarding
+Content-Type: application/json
+```
+
+## Request Body
+
+<ParamField body="leadId" type="string">
+  UUID of a previously saved lead from `POST /api/ai-fin/leads`. Optional — links this onboarding record to an existing lead.
+</ParamField>
+
+<ParamField body="contactName" type="string" required>
+  Full name of the client. Trimmed; min 1 character, max 120 characters.
+</ParamField>
+
+<ParamField body="businessName" type="string" required>
+  Name of the client's business. Trimmed; min 1 character, max 160 characters.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Client email address. Must pass email format validation; max 254 characters.
+</ParamField>
+
+<ParamField body="recommendedProduct" type="string" required>
+  The product the client is onboarding onto. Min 1 character, max 120 characters.
+</ParamField>
+
+<ParamField body="recommendedPackage" type="string" required>
+  The pricing package selected. Must be one of:
+
+  | Value | Stripe env variable required |
+  |---|---|
+  | `"Wave Starter"` | `STRIPE_PRICE_WAVE_STARTER` |
+  | `"Wave Builder"` | `STRIPE_PRICE_WAVE_BUILDER` |
+  | `"Tsunami Growth"` | `STRIPE_PRICE_TSUNAMI_GROWTH` |
+</ParamField>
+
+<ParamField body="nextStepType" type="string" required>
+  The intended next step for this client. Must be one of:
+
+  | Value | Description |
+  |---|---|
+  | `"checkout"` | Direct to Stripe checkout — triggers Stripe config check |
+  | `"booking"` | Direct to a booking/scheduling link |
+  | `"intake_form"` | Direct to an intake questionnaire |
+  | `"human_review"` | Requires a human team member to review before proceeding |
+</ParamField>
+
+## Checkout Status Logic
+
+When `nextStepType` is `"checkout"`, the server performs a real-time check of two conditions:
+
+1. **Stripe secret configured** — `STRIPE_SECRET_KEY` environment variable is set and non-empty.
+2. **Package price configured** — the environment variable for the selected package (e.g. `STRIPE_PRICE_WAVE_BUILDER`) is set and non-empty.
+
+| `STRIPE_SECRET_KEY` | Package price env | `checkoutStatus` | `status` |
+|---|---|---|---|
+| ✅ Set | ✅ Set | `"ready"` | `"ready"` |
+| ❌ Missing | ✅ Set | `"configuration_required"` | `"waiting_configuration"` |
+| ✅ Set | ❌ Missing | `"configuration_required"` | `"waiting_configuration"` |
+| ❌ Missing | ❌ Missing | `"configuration_required"` | `"waiting_configuration"` |
+
+When `nextStepType` is anything other than `"checkout"`, `checkoutStatus` is always `"not_requested"` and `status` is `"ready"`.
+
+## Success Response
+
+HTTP `201 Created`
+
+```json
+{
+  "ok": true,
+  "status": "ready",
+  "onboardingId": "550e8400-e29b-41d4-a716-446655440000",
+  "nextStepType": "checkout",
+  "checkoutStatus": "configuration_required",
+  "url": null,
+  "requiresConfiguration": true,
+  "checkoutConfiguration": {
+    "stripeSecretConfigured": false,
+    "packagePriceConfigured": true,
+    "requiredPriceEnvironmentVariable": "STRIPE_PRICE_WAVE_BUILDER"
+  }
+}
+```
+
+<ResponseField name="ok" type="boolean">
+  Always `true` on success.
+</ResponseField>
+
+<ResponseField name="status" type='"ready" | "waiting_configuration"'>
+  `"ready"` when the next step can proceed immediately. `"waiting_configuration"` when a checkout was requested but Stripe is not fully configured.
+</ResponseField>
+
+<ResponseField name="onboardingId" type="string">
+  UUID of the newly created row in `ai_fin_onboarding`.
+</ResponseField>
+
+<ResponseField name="nextStepType" type="string">
+  Mirrors the `nextStepType` from the request body.
+</ResponseField>
+
+<ResponseField name="checkoutStatus" type='"ready" | "configuration_required" | "not_requested"'>
+  Describes whether Stripe checkout can proceed. `"not_requested"` when `nextStepType` is not `"checkout"`.
+</ResponseField>
+
+<ResponseField name="url" type="null">
+  Always `null` in the current implementation. Reserved for a future Stripe checkout session URL once checkout creation is implemented.
+</ResponseField>
+
+<ResponseField name="requiresConfiguration" type="boolean">
+  `true` when `nextStepType` is `"checkout"` and Stripe is not fully configured. `false` in all other cases.
+</ResponseField>
+
+<ResponseField name="checkoutConfiguration" type="object | null">
+  Present only when `nextStepType` is `"checkout"`. `null` for all other next step types.
+
+  <Expandable title="checkoutConfiguration fields">
+    <ResponseField name="stripeSecretConfigured" type="boolean">
+      `true` if `STRIPE_SECRET_KEY` is set and non-empty.
+    </ResponseField>
+    <ResponseField name="packagePriceConfigured" type="boolean">
+      `true` if the environment variable for the selected package (e.g. `STRIPE_PRICE_WAVE_BUILDER`) is set and non-empty.
+    </ResponseField>
+    <ResponseField name="requiredPriceEnvironmentVariable" type="string">
+      The name of the environment variable that must be set for this package. Use this to surface an actionable configuration prompt in your admin UI.
+
+      | Package | Environment variable |
+      |---|---|
+      | Wave Starter | `STRIPE_PRICE_WAVE_STARTER` |
+      | Wave Builder | `STRIPE_PRICE_WAVE_BUILDER` |
+      | Tsunami Growth | `STRIPE_PRICE_TSUNAMI_GROWTH` |
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Error Responses
+
+<AccordionGroup>
+  <Accordion title="400 INVALID_ONBOARDING_PAYLOAD — Validation failure">
+    Returned when required fields are missing, `email` is malformed, `recommendedPackage` is not a valid enum value, or `nextStepType` is not recognised.
+
+    ```json
+    {
+      "ok": false,
+      "error": "INVALID_ONBOARDING_PAYLOAD",
+      "message": "I need valid onboarding details before I can start this step.",
+      "issues": [
+        { "path": "recommendedPackage", "message": "Invalid enum value. Expected 'Wave Starter' | 'Wave Builder' | 'Tsunami Growth'" }
+      ]
+    }
+    ```
+  </Accordion>
+  <Accordion title="500 SUPABASE_NOT_CONFIGURED — Missing credentials">
+    Returned when Supabase environment variables are absent.
+
+    ```json
+    {
+      "ok": false,
+      "error": "SUPABASE_NOT_CONFIGURED",
+      "message": "Onboarding is not configured on the server yet."
+    }
+    ```
+  </Accordion>
+  <Accordion title="500 ONBOARDING_SAVE_FAILED — Database error">
+    Returned when the Supabase `insert` into `ai_fin_onboarding` fails.
+
+    ```json
+    {
+      "ok": false,
+      "error": "ONBOARDING_SAVE_FAILED",
+      "message": "That onboarding step did not save successfully yet."
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Examples
+
+<Tabs>
+  <Tab title="Checkout (Stripe configured)">
+    ```bash
+    curl -X POST http://localhost:3001/api/ai-fin/onboarding \
+      -H "Content-Type: application/json" \
+      -d '{
+        "leadId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "contactName": "Jamie Oceana",
+        "businessName": "Tide & Co. Roofing",
+        "email": "jamie@tideandco.com",
+        "recommendedProduct": "Sales Rider",
+        "recommendedPackage": "Wave Builder",
+        "nextStepType": "checkout"
+      }'
+    ```
+
+    ```json
+    {
+      "ok": true,
+      "status": "ready",
+      "onboardingId": "d4e5f6a7-b8c9-0123-def0-123456789abc",
+      "nextStepType": "checkout",
+      "checkoutStatus": "ready",
+      "url": null,
+      "requiresConfiguration": false,
+      "checkoutConfiguration": {
+        "stripeSecretConfigured": true,
+        "packagePriceConfigured": true,
+        "requiredPriceEnvironmentVariable": "STRIPE_PRICE_WAVE_BUILDER"
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Checkout (Stripe not configured)">
+    ```bash
+    curl -X POST http://localhost:3001/api/ai-fin/onboarding \
+      -H "Content-Type: application/json" \
+      -d '{
+        "contactName": "River Santos",
+        "businessName": "Santos Digital Agency",
+        "email": "river@santosdigital.com",
+        "recommendedProduct": "Big Kahuna",
+        "recommendedPackage": "Tsunami Growth",
+        "nextStepType": "checkout"
+      }'
+    ```
+
+    ```json
+    {
+      "ok": true,
+      "status": "waiting_configuration",
+      "onboardingId": "e5f6a7b8-c9d0-1234-efab-c01234567890",
+      "nextStepType": "checkout",
+      "checkoutStatus": "configuration_required",
+      "url": null,
+      "requiresConfiguration": true,
+      "checkoutConfiguration": {
+        "stripeSecretConfigured": true,
+        "packagePriceConfigured": false,
+        "requiredPriceEnvironmentVariable": "STRIPE_PRICE_TSUNAMI_GROWTH"
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Booking step">
+    ```bash
+    curl -X POST http://localhost:3001/api/ai-fin/onboarding \
+      -H "Content-Type: application/json" \
+      -d '{
+        "contactName": "Alex Barlow",
+        "businessName": "Coastal Surf Co.",
+        "email": "alex@coastalsurfco.com",
+        "recommendedProduct": "Automation Architect",
+        "recommendedPackage": "Wave Builder",
+        "nextStepType": "booking"
+      }'
+    ```
+
+    ```json
+    {
+      "ok": true,
+      "status": "ready",
+      "onboardingId": "f6a7b8c9-d0e1-2345-fabc-d01234567891",
+      "nextStepType": "booking",
+      "checkoutStatus": "not_requested",
+      "url": null,
+      "requiresConfiguration": false,
+      "checkoutConfiguration": null
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+`url` is always `null` in the current implementation — Stripe Checkout Session creation is not yet wired up. When `checkoutStatus` is `"ready"`, your frontend should guide the client to your Stripe payment link using the `requiredPriceEnvironmentVariable` price ID directly, or await a future server update that will populate `url` with a generated session URL.
+</Note>
+
+## Setting Up Stripe
+
+To enable checkout, add the following to your server environment:
+
+```bash .env
+STRIPE_SECRET_KEY=sk_live_...
+
+STRIPE_PRICE_WAVE_STARTER=price_...
+STRIPE_PRICE_WAVE_BUILDER=price_...
+STRIPE_PRICE_TSUNAMI_GROWTH=price_...
+```
+
+<Tip>
+Use `sk_test_...` and test-mode price IDs during development. The `checkoutConfiguration` response will tell you exactly which variable is missing so you can configure them one at a time.
+</Tip>

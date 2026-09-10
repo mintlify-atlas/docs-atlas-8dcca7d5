@@ -1,0 +1,133 @@
+---
+title: "AI Customer Support Agent: 24/7 Automated Assistance"
+sidebarTitle: "Support Agent"
+description: "The Customer Support Agent handles FAQs, scheduling, and troubleshooting around the clock, escalating to a human via the AI Fin handoff system only when truly needed."
+---
+
+The AI Customer Support Agent eliminates the gap between when customers need help and when your team is available. Powered by the `otd-customer-support-agent` skill, it handles the full breadth of routine support interactions — questions, scheduling requests, basic troubleshooting, and policy enquiries — without requiring a human agent on standby. When an interaction falls outside its scope or triggers a defined escalation rule, it hands off to your team through the AI Fin handoff system, ensuring no customer is ever left in limbo.
+
+## Purpose
+
+The Customer Support Agent exists to **provide 24/7 customer assistance while reducing support workload**. It keeps customers informed and moving forward at any hour, freeing your team to focus on the complex, high-value interactions that genuinely require human judgment.
+
+## Tasks Handled
+
+The agent is authorised to handle the following support interactions autonomously:
+
+<CardGroup cols={2}>
+  <Card title="FAQs" icon="circle-question">
+    Answers frequently asked questions about your business, products, services, hours, and policies — instantly and consistently.
+  </Card>
+  <Card title="Order Questions" icon="box">
+    Addresses enquiries about order status, shipping timelines, and delivery updates using available order data.
+  </Card>
+  <Card title="Scheduling" icon="calendar">
+    Books, reschedules, or cancels appointments on behalf of the customer, reducing back-and-forth email chains.
+  </Card>
+  <Card title="Basic Troubleshooting" icon="wrench">
+    Walks customers through standard diagnostic steps for common product or service issues, resolving the majority of tickets without escalation.
+  </Card>
+  <Card title="Policy Questions" icon="file-lines">
+    Explains return policies, refund terms, subscription rules, and other documented business policies accurately and clearly.
+  </Card>
+  <Card title="Customer Requests" icon="hand">
+    Processes routine customer requests — preference updates, information changes, and service adjustments — within defined parameters.
+  </Card>
+</CardGroup>
+
+## Operating Rules
+
+The agent follows four non-negotiable rules in every interaction:
+
+<CardGroup cols={2}>
+  <Card title="Always Be Helpful" icon="handshake">
+    The agent approaches every interaction with the goal of resolving the customer's issue. It never deflects unnecessarily or gives a non-answer when a real answer exists.
+  </Card>
+  <Card title="Always Be Accurate" icon="check-double">
+    Responses are grounded in documented information. The agent does not speculate, invent policies, or over-promise on outcomes it cannot guarantee.
+  </Card>
+  <Card title="Escalate When Needed" icon="arrow-up-right-dots">
+    When an interaction exceeds the agent's scope or triggers a defined escalation rule, it transfers the customer to a human agent immediately — without delay or deflection.
+  </Card>
+  <Card title="Protect Customer Information" icon="shield-halved">
+    The agent handles personal and payment data with care, never exposing sensitive information in chat responses or logging it where it should not appear.
+  </Card>
+</CardGroup>
+
+## Escalation Triggers
+
+The agent automatically escalates to a human operator when any of the following four conditions are detected. Escalation is routed through `POST /api/ai-fin/handoffs` in the AI Fin handoff system.
+
+<Accordion title="Customer Is Angry">
+  When a customer's language or tone signals genuine frustration, distress, or hostility, the agent does not attempt to resolve the emotional situation on its own. It acknowledges the customer's feelings, apologises appropriately, and transfers the conversation to a human agent who can provide the empathetic, adaptive response the situation requires.
+
+  **Why this matters:** Automated responses to angry customers often escalate the situation. Human judgment and emotional intelligence produce better outcomes and protect customer relationships.
+</Accordion>
+<Accordion title="Payment Issue Occurs">
+  Any interaction involving a payment discrepancy, failed charge, disputed transaction, or refund request is immediately escalated. The agent does not attempt to modify billing records, issue credits, or resolve financial disputes autonomously.
+
+  **Why this matters:** Payment errors carry financial and legal implications. Only authorised team members with access to your billing system should process payment adjustments.
+</Accordion>
+<Accordion title="Account Security Issue">
+  If a customer reports unauthorised access, suspicious activity, a lost password combined with unusual behaviour, or any other account security concern, the agent escalates immediately and suspends normal account-assistance actions.
+
+  **Why this matters:** Security incidents require immediate, expert human response. Automated actions in a compromised account could cause further harm.
+</Accordion>
+<Accordion title="Human Approval Required">
+  Some requests — custom pricing, exceptions to policy, special accommodations, or anything outside the agent's configured operating parameters — require a human decision before a commitment can be made. The agent recognises these situations and escalates rather than improvising a response.
+
+  **Why this matters:** Commitments made by an AI without authorisation can create contractual and reputational risk. Escalating ensures your team approves any non-standard outcome.
+</Accordion>
+
+## Integration with AI Fin Handoffs
+
+When an escalation trigger fires, the Customer Support Agent routes the conversation to a human operator via the AI Fin handoff endpoint.
+
+```http
+POST /api/ai-fin/handoffs
+```
+
+The handoff payload includes the conversation context, the escalation reason, and any lead or customer data collected during the session — so the human agent picking up the conversation has full context and never asks the customer to repeat themselves.
+
+<Info>
+  See the [AI Fin Handoffs API reference](/api/ai-fin-handoffs) for the complete request and response schema, including required authentication headers and status codes.
+</Info>
+
+## Reporting
+
+The Customer Support Agent generates four categories of support intelligence to help you improve operations and staffing decisions over time:
+
+<CardGroup cols={2}>
+  <Card title="Top Questions" icon="list-ol">
+    A ranked list of the most frequently asked questions across all support conversations — identifies gaps in self-service content and documentation.
+  </Card>
+  <Card title="Support Volume" icon="chart-bar">
+    The total number of support interactions handled per period, broken down by channel and time of day — informs staffing models and escalation patterns.
+  </Card>
+  <Card title="Unresolved Issues" icon="triangle-exclamation">
+    Interactions where the agent could not reach a resolution — surfaces knowledge gaps, edge cases, and areas where the skill definition may need updating.
+  </Card>
+  <Card title="Customer Satisfaction Trends" icon="face-smile">
+    Aggregate sentiment signals across conversations over time — tracks whether support quality is improving and flags sudden drops that may indicate a product or process problem.
+  </Card>
+</CardGroup>
+
+## Configuring Your Support Agent
+
+Like all AI Surfer agents, the Customer Support Agent is created from the **AI Agent Harbor** at `/members/agents`.
+
+<Steps>
+  <Step title="Open AI Agent Harbor">
+    Navigate to `/members/agents` in your Members Dashboard to access the **Create New AI Agent** form.
+  </Step>
+  <Step title="Define the Agent">
+    Set a clear **Agent name** (e.g. "24/7 Support Bot"), enter your **Business type**, and write a **Purpose** statement that describes the scope of support this agent should cover and any specific policies it should know.
+  </Step>
+  <Step title="Launch">
+    Click **Launch AI Agent 🚀**. The agent is written to Supabase with `status: "active"` and appears immediately in the **Your AI Fleet** grid.
+  </Step>
+</Steps>
+
+<Tip>
+  Include key policy details in the Purpose field — return windows, refund eligibility, support hours for escalation — so the agent can answer policy questions accurately from day one.
+</Tip>

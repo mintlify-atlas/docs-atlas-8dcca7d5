@@ -1,0 +1,273 @@
+---
+title: "POST /api/launch — AI Launch Desk Streaming Endpoint"
+sidebarTitle: "POST /api/launch"
+description: "Submit a launch brief to the Launch Desk agent and receive a streamed release plan as Server-Sent Events — tool progress, text deltas, and a final output."
+---
+
+The `/api/launch` endpoint accepts a structured launch brief, runs it through the AI Surfer Launch Desk OpenAI agent, and streams a complete, structured release plan back to the client using [Server-Sent Events (SSE)](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events). The agent performs an upfront readiness check and critical-path extraction before generating the plan, emitting progress events throughout so your UI can show live status updates.
+
+## Endpoint
+
+```
+POST /api/launch
+```
+
+## Response Type
+
+```
+Content-Type: text/event-stream; charset=utf-8
+Cache-Control: no-cache, no-transform
+Connection: keep-alive
+```
+
+The response is a stream of SSE frames. Each frame is a `data:` line containing a JSON payload followed by a blank line. There is no `event:` field — all frames are the default event type and are differentiated by the `type` property inside the JSON.
+
+<Warning>
+Standard `EventSource` does not support `POST` requests with a body. Use `fetch` with a `ReadableStream` reader or a library such as `@microsoft/fetch-event-source` to consume this endpoint. See the [JavaScript example](#consuming-the-stream-in-javascript) below.
+</Warning>
+
+## Request Body
+
+<ParamField body="productBrief" type="string" required>
+  A description of the product or feature being launched. Must be at least 20 characters. Provide as much context as possible — the agent uses this as its primary input.
+</ParamField>
+
+<ParamField body="audience" type="string" required>
+  The target audience for the launch. Minimum 3 characters. Examples: `"SMB marketing teams"`, `"enterprise CTOs"`.
+</ParamField>
+
+<ParamField body="launchDate" type="string" required>
+  The intended launch date or timeframe. Minimum 4 characters. Examples: `"2025-09-01"`, `"Q4 2025"`, `"in 6 weeks"`.
+</ParamField>
+
+<ParamField body="constraints" type="string" default="None specified">
+  Any known constraints such as budget, team size, or technical limitations. Defaults to `"None specified"` if omitted.
+</ParamField>
+
+<ParamField body="assets" type="string" default="None specified">
+  Existing assets available for the launch — copy, designs, demos, etc. Defaults to `"None specified"` if omitted.
+</ParamField>
+
+<ParamField body="channels" type="string[]" required>
+  An array of launch channels to target. Must contain at least one item. Examples: `["email", "social", "Product Hunt", "press"]`.
+</ParamField>
+
+## SSE Event Types
+
+Each Server-Sent Event carries a `type` discriminant. Your client should handle all four types.
+
+<ResponseField name="tool_progress" type="object">
+  Emitted when the agent starts or completes a tool call. Use this to drive a progress UI.
+
+  <Expandable title="tool_progress fields">
+    <ResponseField name="type" type="string">
+      Always `"tool_progress"`.
+    </ResponseField>
+    <ResponseField name="tool" type="string">
+      The name of the tool being executed, e.g. `"extract_launch_tasks"`, `"check_launch_readiness"`.
+    </ResponseField>
+    <ResponseField name="status" type='"started" | "completed"'>
+      Whether the tool just started or just finished.
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      A human-readable status message suitable for displaying in a progress log. Example: `"Readiness score: 82/100 (ready)."`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="text_delta" type="object">
+  Emitted for each streamed text token as the agent writes the release plan narrative.
+
+  <Expandable title="text_delta fields">
+    <ResponseField name="type" type="string">
+      Always `"text_delta"`.
+    </ResponseField>
+    <ResponseField name="delta" type="string">
+      A single text chunk to append to the output buffer. Concatenate all deltas to reconstruct the full plan.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="final" type="object">
+  Emitted once after the agent run completes. Contains the full assembled output.
+
+  <Expandable title="final fields">
+    <ResponseField name="type" type="string">
+      Always `"final"`.
+    </ResponseField>
+    <ResponseField name="output" type="string">
+      The complete launch plan text. Equivalent to concatenating all `text_delta` values, but provided as a convenience.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="error" type="object">
+  Emitted if validation fails or the agent throws. The stream ends immediately after this event.
+
+  <Expandable title="error fields">
+    <ResponseField name="type" type="string">
+      Always `"error"`.
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      A description of what went wrong, e.g. `"Invalid launch brief"` or `"Launch Desk could not complete the request."`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Examples
+
+### cURL
+
+```bash
+curl -X POST http://localhost:3001/api/launch \
+  -H "Content-Type: application/json" \
+  -N \
+  -d '{
+    "productBrief": "AI Surfer Wave Scout — an AI-powered lead qualification chatbot that integrates with any website and qualifies prospects in real time using a conversational flow.",
+    "audience": "SMB owners and marketing directors looking to automate their top-of-funnel",
+    "launchDate": "2025-09-15",
+    "constraints": "No paid advertising budget for launch week; team of 3",
+    "assets": "Landing page copy, demo video, 5 customer testimonials",
+    "channels": ["email", "LinkedIn", "Product Hunt", "partner referrals"]
+  }'
+```
+
+The `-N` flag disables buffering so SSE frames print as they arrive.
+
+### Consuming the Stream in JavaScript
+
+<Tabs>
+  <Tab title="fetch + ReadableStream">
+    ```typescript src/lib/launchStream.ts
+    async function streamLaunchPlan(brief: object, onEvent: (event: unknown) => void) {
+      const response = await fetch("http://localhost:3001/api/launch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(brief),
+      });
+
+      if (!response.body) throw new Error("No response body");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split("\n\n");
+        buffer = frames.pop() ?? "";
+
+        for (const frame of frames) {
+          const line = frame.trim();
+          if (line.startsWith("data: ")) {
+            try {
+              const payload = JSON.parse(line.slice(6));
+              onEvent(payload);
+            } catch {
+              // malformed frame — skip
+            }
+          }
+        }
+      }
+    }
+
+    // Usage
+    let plan = "";
+    await streamLaunchPlan(
+      {
+        productBrief: "AI Surfer Wave Scout — an AI-powered lead qualification chatbot...",
+        audience: "SMB owners",
+        launchDate: "2025-09-15",
+        channels: ["email", "LinkedIn"],
+      },
+      (event) => {
+        const e = event as { type: string; delta?: string; output?: string; message?: string };
+        if (e.type === "text_delta" && e.delta) plan += e.delta;
+        if (e.type === "final") console.log("Complete plan:", e.output);
+        if (e.type === "tool_progress") console.log("Progress:", e.message);
+        if (e.type === "error") console.error("Agent error:", e.message);
+      }
+    );
+    ```
+  </Tab>
+  <Tab title="React hook">
+    ```typescript src/hooks/useLaunchStream.ts
+    import { useState, useCallback } from "react";
+
+    interface ToolProgress { tool: string; status: "started" | "completed"; message: string }
+
+    export function useLaunchStream() {
+      const [plan, setPlan] = useState("");
+      const [progress, setProgress] = useState<ToolProgress[]>([]);
+      const [streaming, setStreaming] = useState(false);
+      const [error, setError] = useState<string | null>(null);
+
+      const startLaunch = useCallback(async (brief: object) => {
+        setPlan("");
+        setProgress([]);
+        setError(null);
+        setStreaming(true);
+
+        try {
+          const res = await fetch("/api/launch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(brief),
+          });
+
+          const reader = res.body!.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const frames = buffer.split("\n\n");
+            buffer = frames.pop() ?? "";
+
+            for (const frame of frames) {
+              const line = frame.trim();
+              if (!line.startsWith("data: ")) continue;
+              const evt = JSON.parse(line.slice(6));
+
+              if (evt.type === "text_delta") setPlan((p) => p + evt.delta);
+              if (evt.type === "tool_progress") setProgress((prev) => [...prev, evt]);
+              if (evt.type === "error") setError(evt.message);
+            }
+          }
+        } finally {
+          setStreaming(false);
+        }
+      }, []);
+
+      return { plan, progress, streaming, error, startLaunch };
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Error Cases
+
+<AccordionGroup>
+  <Accordion title="400 — Validation failure">
+    If the request body does not satisfy `LaunchBriefSchema`, an `error` SSE event is emitted and the stream closes immediately. No HTTP 400 status code is returned — the response status is always `200` for SSE connections; errors are signalled in-band.
+
+    ```json
+    data: {"type":"error","message":"String must contain at least 20 character(s)"}
+    ```
+  </Accordion>
+  <Accordion title="500 — Agent error">
+    If the OpenAI agent run throws (e.g. missing `OPENAI_API_KEY`, model timeout), an `error` event is emitted with the caught error message.
+
+    ```json
+    data: {"type":"error","message":"Launch Desk could not complete the request."}
+    ```
+
+    Verify `OPENAI_API_KEY` is set and the `/health` endpoint reports `openaiConfigured: true`.
+  </Accordion>
+</AccordionGroup>

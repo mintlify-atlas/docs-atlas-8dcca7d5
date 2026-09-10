@@ -1,0 +1,370 @@
+---
+title: "Launch Desk Tools: Readiness Scoring and Copy Generation"
+sidebarTitle: "Launch Tools"
+description: "Four deterministic TypeScript tools power the Launch Desk agent: task extraction, readiness scoring, owner checklists, and channel-specific copy drafting."
+---
+
+The Launch Desk agent delegates the deterministic parts of release planning to four registered tools defined in `server/tools/launchTools.ts`. Each tool is built with the `tool()` factory from `@openai/agents`, which binds a Zod input schema, a description the model uses to decide when to call it, and a typed `execute` function. The agent can call these tools autonomously during a run; the HTTP handler also calls two of them synchronously in the pre-flight phase before the agent starts streaming.
+
+## Tool Overview
+
+<CardGroup cols={2}>
+  <Card title="extract_launch_tasks" icon="list-check">
+    Parses a product brief and constraints into a prioritized, dependency-aware task list with P0/P1/P2 labels and owner roles.
+  </Card>
+  <Card title="check_launch_readiness" icon="gauge">
+    Scores launch readiness across six categories and returns an aggregate 0–100 score, a status, and a list of blockers.
+  </Card>
+  <Card title="generate_owner_checklist" icon="clipboard-list">
+    Groups tasks by owner role and attaches pre-go/no-go or pre-launch-day timing to each action.
+  </Card>
+  <Card title="draft_channel_copy" icon="bullhorn">
+    Generates a headline, body, and CTA for every requested distribution channel using only facts in the brief.
+  </Card>
+</CardGroup>
+
+---
+
+## extract_launch_tasks
+
+The `extract_launch_tasks` tool reads the product brief and constraints, applies keyword-based conditional logic, and returns a typed `LaunchTask[]` array. It is intentionally deterministic — the same brief always produces the same base set of tasks.
+
+```typescript server/tools/launchTools.ts
+export function extractLaunchTasks(
+  input: { productBrief: string; constraints: string }
+): LaunchTask[]
+```
+
+### Input
+
+<ParamField body="productBrief" type="string" required>
+  The full product launch description. Combined with `constraints` for keyword scanning.
+</ParamField>
+
+<ParamField body="constraints" type="string" required>
+  Known constraints, blockers, or requirements. Pass `"None specified"` if the field was omitted in the original brief.
+</ParamField>
+
+### Default Tasks
+
+The following five tasks are always included in the output regardless of the brief content:
+
+| Priority | Title | Owner Role | Dependency |
+|----------|-------|------------|------------|
+| P0 | Lock launch scope and success criteria | Product | Product brief |
+| P0 | Complete production validation and rollback plan | Engineering | Launch scope |
+| P1 | Prepare audience-facing launch assets | Marketing | Final positioning |
+| P1 | Define launch-day monitoring and escalation | Engineering | Success criteria |
+| P1 | Confirm stakeholder approvals | Launch Lead | Scope and assets |
+
+### Conditional Tasks
+
+Two additional tasks are appended when specific keywords are detected in the combined `productBrief + constraints` text (case-insensitive):
+
+<Accordion title="Mobile release gates task">
+  **Trigger keywords:** `mobile`, `ios`, or `android` anywhere in the combined text.
+
+  | Field | Value |
+  |-------|-------|
+  | Title | Validate mobile release gates and store readiness |
+  | Priority | P0 |
+  | Dependency | Production validation |
+  | Owner Role | Engineering |
+  | Rationale | Mobile launches add platform-specific signing, review, and rollout dependencies. |
+</Accordion>
+
+<Accordion title="Migration rehearsal task">
+  **Trigger keywords:** `migration` or `data` anywhere in the combined text.
+
+  | Field | Value |
+  |-------|-------|
+  | Title | Run migration rehearsal and data rollback check |
+  | Priority | P0 |
+  | Dependency | Production validation |
+  | Owner Role | Engineering |
+  | Rationale | Data changes need a rehearsed recovery path before launch. |
+</Accordion>
+
+### Output
+
+Returns a `LaunchTask[]` array. Each task conforms to:
+
+<ResponseField name="title" type="string">
+  A concise, actionable description of the task.
+</ResponseField>
+
+<ResponseField name="priority" type="string">
+  One of `"P0"` (launch blocker), `"P1"` (pre-launch required), or `"P2"` (nice-to-have).
+</ResponseField>
+
+<ResponseField name="dependency" type="string">
+  The upstream deliverable this task depends on before work can begin.
+</ResponseField>
+
+<ResponseField name="ownerRole" type="string">
+  The role responsible for completing the task (e.g. `"Engineering"`, `"Marketing"`, `"Launch Lead"`).
+</ResponseField>
+
+<ResponseField name="rationale" type="string">
+  A one-sentence explanation of why this task is on the critical path.
+</ResponseField>
+
+---
+
+## check_launch_readiness
+
+`check_launch_readiness` scores a launch across six dimensions and produces an aggregate readiness verdict. The scoring logic is fully deterministic — no LLM calls are made inside this tool.
+
+```typescript server/tools/launchTools.ts
+export function checkLaunchReadiness(
+  input: {
+    launchDate:  string;
+    productBrief: string;
+    constraints: string;
+    assets:      string;
+    tasks:       LaunchTask[];
+  }
+): Readiness
+```
+
+### Input
+
+<ParamField body="launchDate" type="string" required>
+  Target launch date. Currently used as context — readiness scoring is not gated on a specific date format.
+</ParamField>
+
+<ParamField body="productBrief" type="string" required>
+  The full product description. Length and specific keyword presence determine Product and Measurement category scores.
+</ParamField>
+
+<ParamField body="constraints" type="string" required>
+  Known constraints. The word `"approval"` unlocks a higher Stakeholders score.
+</ParamField>
+
+<ParamField body="assets" type="string" required>
+  Available assets string. Keywords `"copy"` or `"email"` unlock a higher Communications score.
+</ParamField>
+
+<ParamField body="tasks" type="LaunchTask[]" required>
+  The task list produced by `extract_launch_tasks`. The presence of a rollback task in this list influences the Engineering score.
+</ParamField>
+
+### Scoring Logic by Category
+
+Each of the six categories scores independently. The aggregate score is the arithmetic mean of all six category scores, rounded to the nearest integer.
+
+<Accordion title="Product (0–100)">
+  - **90** — `productBrief.length > 120`: brief is detailed enough to act on.
+  - **65** — brief is 20–120 chars: gap message prompts clarification of scope, success criteria, and non-goals.
+</Accordion>
+
+<Accordion title="Engineering (0–100)">
+  - **85** — any task title contains the word `"rollback"`: a recovery path is represented in the plan.
+  - **60** — no rollback task found: gap message asks for production validation and rollback detail.
+</Accordion>
+
+<Accordion title="Operations (0–100)">
+  - **70** — fixed score regardless of input. Gap message always prompts confirmation of monitoring, escalation, and support coverage.
+</Accordion>
+
+<Accordion title="Communications (0–100)">
+  - **85** — `assets` contains `"copy"` or `"email"` (case-insensitive): core communication assets appear available.
+  - **55** — neither keyword present: gap message asks for approved messaging and launch assets.
+</Accordion>
+
+<Accordion title="Measurement (0–100)">
+  - **85** — `productBrief` contains `"metric"` or `"kpi"` (case-insensitive): success metrics are mentioned.
+  - **50** — neither keyword present: gap message asks for launch-day KPI definitions and owners.
+</Accordion>
+
+<Accordion title="Stakeholders (0–100)">
+  - **80** — `constraints` contains `"approval"` (case-insensitive): approval constraint is captured.
+  - **60** — keyword absent: gap message asks to confirm approvers and decision deadline.
+</Accordion>
+
+### Output
+
+<ResponseField name="score" type="number">
+  Integer from 0–100. Mean of the six category scores.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  - `"ready"` — score ≥ 80
+  - `"at-risk"` — score ≥ 65 and < 80
+  - `"blocked"` — score < 65
+</ResponseField>
+
+<ResponseField name="categories" type="object[]">
+  Array of `{ category: string, score: number, gap: string }` — one entry per dimension, providing both the numeric score and a human-readable gap description passed back to the agent.
+</ResponseField>
+
+<ResponseField name="blockers" type="string[]">
+  Formatted strings (`"Category: gap message"`) for every category scoring below 60. The agent surfaces these in the Risk Register section of the plan.
+</ResponseField>
+
+---
+
+## generate_owner_checklist
+
+`generate_owner_checklist` reorganises the flat task list into a per-owner-role view with timing gates attached to every action. It is consumed by the agent to produce the Owner Checklist section of the release plan.
+
+```typescript server/tools/launchTools.ts
+export const generateOwnerChecklistTool = tool({
+  name: "generate_owner_checklist",
+  description: "Generate owner-role checklists from launch tasks and target date.",
+  parameters: z.object({
+    launchDate: z.string(),
+    tasks:      z.array(LaunchTaskSchema),
+  }),
+  execute: async ({ tasks, launchDate }) => { /* ... */ },
+});
+```
+
+### Input
+
+<ParamField body="launchDate" type="string" required>
+  Target launch date — passed through unchanged into the output so consumers can render it alongside the checklist.
+</ParamField>
+
+<ParamField body="tasks" type="LaunchTask[]" required>
+  Full task list from `extract_launch_tasks`. Tasks are grouped by `ownerRole`; insertion order within each group is preserved.
+</ParamField>
+
+### Timing Logic
+
+The tool assigns a timing gate to each action based solely on its priority:
+
+| Priority | Timing |
+|----------|--------|
+| `P0` | `"Before final go/no-go"` |
+| `P1` or `P2` | `"Before launch day"` |
+
+### Output
+
+```typescript
+{
+  launchDate: string;
+  checklist: Array<{
+    owner: string;
+    actions: Array<{
+      task:     string;
+      priority: string;
+      timing:   string;
+    }>;
+  }>;
+}
+```
+
+<ResponseField name="launchDate" type="string">
+  Echo of the input `launchDate`.
+</ResponseField>
+
+<ResponseField name="checklist" type="object[]">
+  One entry per unique `ownerRole`. Owner entries appear in the order their first task was encountered in the input array.
+</ResponseField>
+
+<ResponseField name="checklist[].owner" type="string">
+  The owner role string (e.g. `"Engineering"`, `"Marketing"`, `"Launch Lead"`).
+</ResponseField>
+
+<ResponseField name="checklist[].actions" type="object[]">
+  Array of `{ task, priority, timing }` — one entry per task assigned to this owner.
+</ResponseField>
+
+---
+
+## draft_channel_copy
+
+`draft_channel_copy` produces a structured copy block for every channel in the request. Output is derived strictly from the brief — no creative licence is taken beyond reformatting the brief into headline/body/CTA structure.
+
+```typescript server/tools/launchTools.ts
+export const draftChannelCopyTool = tool({
+  name: "draft_channel_copy",
+  description: "Draft concise, channel-specific launch copy using only facts present in the brief.",
+  parameters: z.object({
+    productBrief: z.string(),
+    audience:     z.string(),
+    channels:     z.array(z.string()),
+    assets:       z.string(),
+  }),
+  execute: async ({ productBrief, audience, channels }) => {
+    return channels.map((channel) => ({
+      channel,
+      headline: `${audience}: meet the new release`,
+      body:     `We are launching ${productBrief.slice(0, 180).replace(/\s+/g, " ")}...`,
+      cta:      "See the launch details",
+    }));
+  },
+});
+```
+
+### Input
+
+<ParamField body="productBrief" type="string" required>
+  The product description used to populate the copy body. Truncated to 180 characters in the body field.
+</ParamField>
+
+<ParamField body="audience" type="string" required>
+  The target audience string. Used verbatim in the headline template.
+</ParamField>
+
+<ParamField body="channels" type="string[]" required>
+  One entry per channel — the tool iterates this array and produces one copy block per entry (e.g. `["email", "social", "blog"]`).
+</ParamField>
+
+<ParamField body="assets" type="string" required>
+  Available assets. Accepted by the tool schema but not currently used in copy construction — reserved for future template selection logic.
+</ParamField>
+
+### Output
+
+An array of copy objects, one per channel:
+
+<ResponseField name="channel" type="string">
+  Echo of the channel name from the input array.
+</ResponseField>
+
+<ResponseField name="headline" type="string">
+  Template: `"{audience}: meet the new release"` — the audience string from the brief is inserted verbatim.
+</ResponseField>
+
+<ResponseField name="body" type="string">
+  Begins with `"We are launching "` followed by the first 180 characters of the product brief with whitespace normalised. Ends with `"..."` if the brief was truncated.
+</ResponseField>
+
+<ResponseField name="cta" type="string">
+  Fixed value: `"See the launch details"`.
+</ResponseField>
+
+<Note>
+  All copy content is derived exclusively from facts present in the product brief and audience fields — no claims, metrics, or features are invented. If the brief is vague, the copy will be vague. Write a detailed `productBrief` (≥ 120 chars) to get useful output from this tool.
+</Note>
+
+---
+
+## Using Tools Outside the Agent
+
+Both `extractLaunchTasks` and `checkLaunchReadiness` are exported as plain TypeScript functions in addition to their `tool()` wrappers. The HTTP handler uses these exports directly in the pre-flight phase before the agent stream starts:
+
+```typescript server/api/launch.ts
+import { checkLaunchReadiness, extractLaunchTasks } from "../tools/launchTools";
+
+// Pre-flight — runs before the agent stream opens
+const tasks = extractLaunchTasks({
+  productBrief: brief.productBrief,
+  constraints:  brief.constraints,
+});
+
+const readiness = checkLaunchReadiness({ ...brief, tasks });
+
+// Results are injected into the agent prompt as structured JSON
+const prompt = `Launch context:\n${JSON.stringify(
+  { ...brief, extractedTasks: tasks, readiness },
+  null,
+  2,
+)}\n\nCreate the release plan now.`;
+```
+
+<Tip>
+  Calling the plain functions directly — rather than waiting for the agent to invoke the tools — means task extraction and readiness scoring complete before the first SSE event is sent. Users see progress feedback (`tool_progress` events) from the very start of the stream.
+</Tip>
